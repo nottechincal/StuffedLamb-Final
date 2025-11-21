@@ -13,25 +13,35 @@ const businessData = JSON.parse(
 class SMSService {
   constructor() {
     this.client = null;
-    this.fromNumber = process.env.TWILIO_FROM;
-    this.shopNumber = process.env.SHOP_ORDER_TO;
+    this.fromNumber = null;
+    this.shopNumber = null;
     this.initialized = false;
   }
 
   initialize() {
     if (this.initialized) return;
 
+    // Read env vars during initialization, not during construction
+    this.fromNumber = process.env.TWILIO_FROM;
+    this.shopNumber = process.env.SHOP_ORDER_TO;
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-    // Debug: Show what we're checking
-    console.log('🔍 Twilio Config Check:');
-    console.log(`   ACCOUNT_SID: ${accountSid ? 'AC***' + accountSid.slice(-4) : '❌ MISSING'}`);
-    console.log(`   AUTH_TOKEN: ${authToken ? '***' + authToken.slice(-4) : '❌ MISSING'}`);
-    console.log(`   FROM_NUMBER: ${this.fromNumber || '❌ MISSING'}`);
+    // Debug: Show what we're checking (Windows-compatible output)
+    const isWindows = process.platform === 'win32';
+    const checkIcon = isWindows ? '[CHECK]' : '🔍';
+    const okIcon = isWindows ? '[OK]' : '✅';
+    const warnIcon = isWindows ? '[WARN]' : '⚠️ ';
+    const errorIcon = isWindows ? '[ERROR]' : '❌';
+    const missingText = isWindows ? 'MISSING' : '❌ MISSING';
+
+    console.log(`${checkIcon} Twilio Config Check:`);
+    console.log(`   ACCOUNT_SID: ${accountSid ? 'AC***' + accountSid.slice(-4) : missingText}`);
+    console.log(`   AUTH_TOKEN: ${authToken ? '***' + authToken.slice(-4) : missingText}`);
+    console.log(`   FROM_NUMBER: ${this.fromNumber || missingText}`);
 
     if (!accountSid || !authToken || !this.fromNumber) {
-      console.warn('⚠️  Twilio credentials not configured. SMS features will be disabled.');
+      console.warn(`${warnIcon} Twilio credentials not configured. SMS features will be disabled.`);
       console.warn(`   Missing: ${!accountSid ? 'ACCOUNT_SID ' : ''}${!authToken ? 'AUTH_TOKEN ' : ''}${!this.fromNumber ? 'FROM_NUMBER' : ''}`);
       return;
     }
@@ -39,9 +49,9 @@ class SMSService {
     try {
       this.client = twilio(accountSid, authToken);
       this.initialized = true;
-      console.log('✅ Twilio SMS service initialized');
+      console.log(`${okIcon} Twilio SMS service initialized`);
     } catch (error) {
-      console.error('❌ Failed to initialize Twilio:', error.message);
+      console.error(`${errorIcon} Failed to initialize Twilio:`, error.message);
     }
   }
 
@@ -58,10 +68,12 @@ class SMSService {
         to: to
       });
 
-      console.log(`✅ SMS sent to ${to}: ${result.sid}`);
+      const okIcon = process.platform === 'win32' ? '[OK]' : '✅';
+      console.log(`${okIcon} SMS sent to ${to}: ${result.sid}`);
       return { success: true, sid: result.sid };
     } catch (error) {
-      console.error(`❌ Failed to send SMS to ${to}:`, error.message);
+      const errorIcon = process.platform === 'win32' ? '[ERROR]' : '❌';
+      console.error(`${errorIcon} Failed to send SMS to ${to}:`, error.message);
       return { success: false, error: error.message };
     }
   }

@@ -9,6 +9,28 @@ const __dirname = dirname(__filename);
 const LOGS_DIR = join(__dirname, '../../logs');
 
 class Logger {
+  constructor() {
+    // Detect if running on Windows and if colors are supported
+    this.isWindows = process.platform === 'win32';
+    this.supportsColor = this.checkColorSupport();
+  }
+
+  checkColorSupport() {
+    // Check if terminal supports colors
+    // Windows Command Prompt doesn't support ANSI by default
+    // PowerShell 5.1+ and Windows Terminal do support colors
+    if (this.isWindows) {
+      // Disable colors for basic Windows Command Prompt
+      // Enable for Windows Terminal and modern PowerShell
+      const term = process.env.TERM || '';
+      const wt = process.env.WT_SESSION;
+      const psVersion = process.env.PSModuleAnalysisCachePath;
+
+      return !!(wt || psVersion || term.includes('xterm'));
+    }
+    return true;
+  }
+
   log(level, message, data = null) {
     const timestamp = new Date().toISOString();
     const logEntry = {
@@ -18,7 +40,7 @@ class Logger {
       data
     };
 
-    // Console output with colors
+    // Console output - clean for Windows, colored for others
     const colors = {
       info: '\x1b[36m',    // Cyan
       success: '\x1b[32m', // Green
@@ -27,16 +49,19 @@ class Logger {
       reset: '\x1b[0m'
     };
 
-    const color = colors[level] || colors.reset;
-    const emoji = {
-      info: 'ℹ️ ',
-      success: '✅',
-      warn: '⚠️ ',
-      error: '❌'
+    const color = this.supportsColor ? (colors[level] || colors.reset) : '';
+    const resetColor = this.supportsColor ? colors.reset : '';
+
+    // Simple text icons for Windows, emojis for others
+    const icons = {
+      info: this.isWindows ? '[INFO]' : 'ℹ️ ',
+      success: this.isWindows ? '[OK]' : '✅',
+      warn: this.isWindows ? '[WARN]' : '⚠️ ',
+      error: this.isWindows ? '[ERROR]' : '❌'
     };
 
     console.log(
-      `${color}${emoji[level] || ''} [${format(new Date(), 'HH:mm:ss')}] ${message}${colors.reset}`,
+      `${color}${icons[level] || ''} [${format(new Date(), 'HH:mm:ss')}] ${message}${resetColor}`,
       data ? data : ''
     );
 

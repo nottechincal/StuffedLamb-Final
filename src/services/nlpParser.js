@@ -86,7 +86,8 @@ class NLPParser {
    * Main parse function - converts natural language to structured item config
    */
   parse(description) {
-    const lower = description.toLowerCase().trim();
+    // Remove trailing punctuation and normalize
+    const lower = description.toLowerCase().trim().replace(/[.,!?;]+$/g, '');
 
     // Extract quantity
     const quantity = this.extractQuantity(lower);
