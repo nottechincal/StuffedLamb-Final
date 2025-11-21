@@ -1,316 +1,420 @@
-# Stuffed Lamb - Vapi Voice Testing Suite
+# Stuffed Lamb - Complete Vapi Voice Testing Suite
 
-Complete test scenarios for validating the AI ordering assistant.
-
----
-
-## Test 1: Simple Single Item Order
-
-### Script
-1. Answer the greeting and order a Lamb Mandi.
-2. Decline any additional items.
-3. When asked about pickup time, say "ASAP".
-4. Provide name "Sarah" and phone number "0412345678".
-5. Confirm the order and end the call.
-
-### Rubric
-The assistant should:
-- Greet warmly and add the Lamb Mandi correctly
-- Ask about additional items naturally
-- Call `estimateReadyTime()` for ASAP request
-- Collect customer details (name and phone)
-- Successfully call `createOrder()` with correct pricing
-- Confirm order number and pickup time clearly
-- End the call after confirmation
+**15 Strategic Tests Covering All System Functionality**
 
 ---
 
-## Test 2: Multiple Items with Addons
-
-### Script
-1. Order a Mansaf with extra Jameed and extra rice.
-2. When asked, add a Coke.
-3. Confirm the total when asked.
-4. Request pickup at "6:30 PM".
-5. Provide name "Michael" and phone "0423680596".
-6. Confirm and complete the order.
-
-### Rubric
-The assistant should:
-- Add ONE Mansaf with BOTH addons (not two separate items)
-- Add the Coke as a separate item
-- Provide accurate total for Mansaf ($33) + extra Jameed ($8) + extra rice ($8) + Coke ($3) = $52
-- Parse "6:30 PM" correctly as specific time
-- Collect details and successfully create order
-- Maintain consistent pricing throughout (no mismatches)
-
----
-
-## Test 3: Menu Inquiry and Text Request
-
-### Script
-1. Ask "What's on the menu?"
-2. Accept the offer to receive menu via text.
-3. After receiving text confirmation, order a Chicken Mandi with nuts.
-4. Request pickup "in 45 minutes".
-5. Provide name "Jessica" and phone "0456789012".
-6. Complete the order.
-
-### Rubric
-The assistant should:
-- Offer to text the menu FIRST (not list everything verbally)
-- Call `sendMenuLink()` with the phone number
-- Acknowledge the text was sent
-- Add Chicken Mandi with nuts correctly ($23 + $2 = $25)
-- Parse "in 45 minutes" correctly as relative time
-- Complete order successfully
-
----
-
-## Test 4: Off-Topic Question Handling
-
-### Script
-1. Begin by asking about menu options.
-2. Midway, ask "How much do the sun and moon weigh?"
-3. When redirected, order a Lamb Mandi with sultanas.
-4. Request pickup time "20 minutes".
-5. Provide name "David" and phone "0498765432".
-6. Conclude the order.
-
-### Rubric
-The assistant should:
-- Politely decline the off-topic question
-- Redirect conversation back to ordering without being rude
-- Not attempt to answer non-restaurant questions
-- Add Lamb Mandi with sultanas correctly
-- Parse "20 minutes" (without "in") as relative time correctly
-- Complete order flow professionally
-
----
-
-## Test 5: Order Modification
-
-### Script
-1. Order a Chicken Mandi.
-2. Before finalizing, say "Actually, change that to Lamb Mandi".
-3. Add nuts to the Lamb Mandi.
-4. Request pickup "ASAP".
-5. Provide name "Emma" and phone "0487654321".
-6. Complete the order.
-
-### Rubric
-The assistant should:
-- Successfully handle the modification request
-- Either remove Chicken Mandi and add Lamb Mandi, or use `editCartItem()`
-- Add nuts as an addon to the Lamb Mandi
-- Calculate correct total: Lamb Mandi ($28) + nuts ($2) = $30
-- Complete order with correct items in cart
-
----
-
-## Test 6: Multiple Items Same Type
-
-### Script
-1. Order "2 Lamb Mandis".
-2. When asked about addons, say "nuts on both".
-3. Add a soup and water.
-4. Request pickup at "7 PM".
-5. Provide name "Oliver" and phone "0476543210".
-6. Confirm order.
-
-### Rubric
-The assistant should:
-- Add 2x Lamb Mandi with nuts (either as quantity=2 or combined items)
-- Add soup ($7) and water ($2) separately
-- Calculate correct total: (2 × $28) + (2 × $2) + $7 + $2 = $69
-- Not create duplicate separate items
-- Maintain accurate cart throughout
-
----
-
-## Test 7: Pickup Time Clarification
-
-### Script
-1. Order a Mansaf.
-2. When asked about pickup time, say "later today".
-3. When prompted for specific time, say "around dinner time".
-4. Finally specify "6 PM".
-5. Provide name "Sophia" and phone "0465432109".
-6. Complete order.
-
-### Rubric
-The assistant should:
-- Recognize "later today" is too vague
-- Ask for a more specific time
-- Recognize "dinner time" is still vague
-- Continue asking until specific time is given
-- Parse "6 PM" correctly
-- Not proceed to collect details until pickup time is set
-
----
-
-## Test 8: Cart Review Before Ordering
-
-### Script
-1. Order a Lamb Mandi with nuts.
-2. Add a Coke.
-3. Before confirming, ask "What do I have so far?"
-4. Confirm and request pickup "in 30 minutes".
-5. Provide name "Lucas" and phone "0454321098".
-6. Complete order.
-
-### Rubric
-The assistant should:
-- Call `getCartState()` when asked
-- List items naturally: "Lamb Mandi with nuts, Coke"
-- NOT use numbered list format
-- Calculate total correctly: $28 + $2 + $3 = $33
-- Keep the flow conversational and brief
-- Complete order successfully
-
----
-
-## Test 9: Addon-Only Item Attempt
-
-### Script
-1. Ask to order "just extra rice".
-2. When informed it's addon-only, order a Mansaf.
-3. Ask to add the extra rice to the Mansaf.
-4. Request pickup "ASAP".
-5. Provide name "Ava" and phone "0443210987".
-6. Complete order.
-
-### Rubric
-The assistant should:
-- Recognize "extra rice" cannot be ordered alone
-- Politely explain it's only available as an addon
-- Suggest adding a main dish
-- Successfully add Mansaf with extra rice
-- Calculate correct total: $33 + $5 = $38
-- Handle the correction gracefully
-
----
-
-## Test 10: Repeat Order Scenario
-
-### Script
-1. Call and provide phone number "0423680596" (existing customer).
-2. When offered, confirm to repeat your last order.
-3. Request pickup time "6 PM".
-4. Confirm name and complete order.
-
-### Rubric
-The assistant should:
-- Call `getCallerSmartContext()` with the phone number
-- Recognize returning customer (if order history exists)
-- Offer to repeat last order naturally
-- Call `repeatLastOrder()` if customer agrees
-- Not require full order process again
-- Apply same items with current pricing
-
----
-
-## Test 11: Partial Order Abandonment Recovery
+## Test 1: Simple Happy Path
 
 ### Script
 1. Order a Lamb Mandi.
-2. When asked about additional items, pause for 5 seconds.
-3. Say "Sorry, I'm still deciding".
-4. Add sultanas to the Lamb Mandi.
-5. Complete the order with pickup "in 25 minutes".
-6. Provide name "Noah" and phone "0432109876".
+2. Decline additional items.
+3. Pickup time "ASAP".
+4. Name "Sarah", phone "0423680596".
+5. Complete order.
 
 ### Rubric
-The assistant should:
-- Be patient with customer indecision
-- Not rush or pressure the customer
-- Successfully add sultanas as addon
-- Maintain cart state throughout pauses
-- Complete order without losing items
-- Calculate total correctly: $28 + $2 = $30
+- Greet warmly, add item correctly
+- Call `estimateReadyTime()` for ASAP
+- Call `createOrder()` with correct pricing ($28)
+- Confirm order number and pickup time
+- Call `endCall()` after confirmation
+
+**Tests**: Basic flow, estimateReadyTime, createOrder, endCall
 
 ---
 
-## Test 12: Price Inquiry
+## Test 2: Multiple Items with Mixed Addons
 
 ### Script
-1. Ask "How much is the Mansaf?"
-2. Order a Mansaf.
-3. Ask "What are the extras and how much?"
-4. Add extra Jameed.
-5. Request pickup "ASAP".
-6. Provide name "Isabella" and phone "0421098765".
+1. Order "2 Lamb Mandis - one with nuts, one with sultanas".
+2. Add a Mansaf with both extra Jameed AND extra rice.
+3. Add Sprite, Fanta, and water.
+4. Pickup "6:30 PM".
+5. Name "Michael", phone "0423680596".
+6. Complete order.
+
+### Rubric
+- 2 separate Lamb Mandis (different addons) + 1 Mansaf (2 addons)
+- 3 different drinks added correctly
+- Total: $28 + $2 + $28 + $2 + $33 + $8 + $8 + $3 + $3 + $2 = $117
+- Parse "6:30 PM" as specific time
+- All items in SMS receipt with correct names
+
+**Tests**: Multiple items, mixed addons, specific time parsing, all drink types, SMS formatting
+
+---
+
+## Test 3: Cart Management (Review, Remove, Clear)
+
+### Script
+1. Order Chicken Mandi, Lamb Mandi, Coke.
+2. Ask "What's in my cart?"
+3. Say "Remove the Chicken Mandi".
+4. Confirm cart state again.
+5. Say "Actually, cancel everything and start over".
+6. Order just a Mansaf.
+7. Pickup "in 45 minutes", name "Emma", phone "0423680596".
+8. Complete order.
+
+### Rubric
+- Call `getCartState()` twice
+- Call `removeCartItem()` successfully
+- Call `clearCart()` and start fresh
+- Final order only has Mansaf ($33)
+- Cart formatted as comma-separated (no numbers)
+
+**Tests**: getCartState, removeCartItem, clearCart, relative time parsing
+
+---
+
+## Test 4: Menu Inquiry and Off-Topic Handling
+
+### Script
+1. Ask "What's on the menu?"
+2. Accept menu text.
+3. Ask "How much do the sun and moon weigh?"
+4. When redirected, order Chicken Mandi with nuts and sultanas.
+5. Ask "How much is that?"
+6. Pickup "20 minutes", name "David", phone "0423680596".
 7. Complete order.
 
 ### Rubric
-The assistant should:
-- Answer price question directly: "thirty-three dollars"
-- When asked about extras, list them WITHOUT mentioning every price
-- Only mention addon prices if specifically asked
-- Keep response brief and natural
-- Calculate correct total: $33 + $8 = $41
-- Not be overly verbose with pricing details
+- Offer to text menu, call `sendMenuLink()`
+- Politely decline off-topic question
+- Add ONE Chicken Mandi with BOTH addons (not 2 items)
+- Answer price: "twenty-seven dollars" ($23 + $2 + $2)
+- Parse "20 minutes" without "in"
+
+**Tests**: sendMenuLink, off-topic handling, price inquiry, multiple addons on one item
 
 ---
 
-## Critical Success Criteria (All Tests)
+## Test 5: Order Modifications and Quantity Changes
+
+### Script
+1. Order "2 Chicken Mandis".
+2. Say "Actually, make that 3".
+3. Say "Change one to Lamb Mandi but keep it at 3 total".
+4. Say "Add nuts to all of them".
+5. Pickup "ASAP", name "Abigail", phone "0423680596".
+6. Complete order.
+
+### Rubric
+- Use `editCartItem()` for quantity change
+- Handle complex modification request
+- Final: 2 Chicken Mandi + 1 Lamb Mandi, all with nuts
+- Total: ($23 × 2) + $28 + ($2 × 3) = $80
+- Maintain patience through changes
+
+**Tests**: editCartItem, quantity modification, complex change handling
+
+---
+
+## Test 6: All Main Dishes + Standalone Sides
+
+### Script
+1. Order Mansaf, Lamb Mandi, Chicken Mandi (no addons).
+2. Add 2 soups, 1 rice side.
+3. Add L&P and Coke No Sugar.
+4. Pickup "7 PM", name "Amelia", phone "0423680596".
+5. Complete order.
+
+### Rubric
+- All 3 mains added successfully
+- Sides ordered without requiring main dish
+- Both specialty drinks added correctly
+- Total: $33 + $28 + $23 + ($7 × 2) + $7 + $3 + $3 = $111
+- SMS shows "Soft Drink (lnp)" and "Soft Drink (coke_no_sugar)"
+
+**Tests**: All main dishes, standalone sides, L&P, Coke No Sugar, large order
+
+---
+
+## Test 7: Repeat Customer Flow
+
+### Script
+1. Call from "0423680596" (existing customer).
+2. When offered, say "Yes, repeat my last order".
+3. Say "Add a Coke to it".
+4. Pickup "6 PM", confirm name.
+5. Complete order.
+
+### Rubric
+- Call `getCallerSmartContext()`
+- Recognize returning customer
+- Call `repeatLastOrder()`
+- Successfully add additional item
+- Not re-request full order entry
+- May auto-fill phone number
+
+**Tests**: getCallerSmartContext, repeatLastOrder, customer recognition, phone auto-detect
+
+---
+
+## Test 8: Business Hours and Closed Day
+
+### Script (Run on Monday/Tuesday):
+1. Call and try to order.
+2. Ask "When do you open?"
+3. End call.
+
+### Script (Run Wed-Sun):
+1. Ask "Are you open?"
+2. Order Chicken Mandi.
+3. Pickup "ASAP", name "Evelyn", phone "0423680596".
+4. Complete order.
+
+### Rubric
+- Call `checkOpen()`
+- If closed: state "Closed Mon-Tue, open Wed 1 PM"
+- If open: confirm and proceed
+- Not create order when closed
+
+**Tests**: checkOpen, business hours validation, closed day handling
+
+---
+
+## Test 9: Pickup Time Edge Cases
+
+### Script
+1. Order Lamb Mandi.
+2. Say "later today".
+3. When asked for specific time, say "dinner time".
+4. When asked again, say "in 3 hours".
+5. If shop closes before then, negotiate time.
+6. Finalize pickup time.
+7. Name "Madison", phone "0423680596".
+8. Complete order.
+
+### Rubric
+- Recognize vague times and ask for specifics
+- Parse "in 3 hours" correctly
+- Validate pickup time against closing time
+- Suggest alternative if invalid
+- Not proceed without valid pickup time
+
+**Tests**: Vague time handling, hour-based relative time, closing time validation, time negotiation
+
+---
+
+## Test 10: Special Instructions and Notes
+
+### Script
+1. Order 2 Mansafs.
+2. Say "Make one extra spicy, no onions. The other one mild".
+3. Order a Lamb Mandi, say "Extra sauce on the side please".
+4. Pickup "6:30 PM", name "Harper", phone "0423680596".
+5. Complete order.
+
+### Rubric
+- Capture special instructions in notes field
+- Pass notes through to `createOrder()`
+- Acknowledge requests naturally
+- Complete order with notes preserved
+
+**Tests**: Notes field, special instructions, multiple note handling
+
+---
+
+## Test 11: Stress Test - Very Long Order
+
+### Script
+1. Rapid fire: "3 Mansafs - one plain, one with extra Jameed, one with extra rice".
+2. "2 Lamb Mandis with nuts".
+3. "2 Chicken Mandis with sultanas".
+4. "3 soups, 2 rice sides".
+5. "Coke, Sprite, Fanta, L&P, and 2 waters".
+6. Ask "What's my total?"
+7. Pickup "7:30 PM", name "Daniel", phone "0423680596".
+8. Complete order.
+
+### Rubric
+- Add all 17+ items without errors
+- Maintain accurate cart throughout
+- Call `priceCart()` when asked
+- Complex total: 3×$33 + addons + 2×$28 + 2×$2 + 2×$23 + 2×$2 + 3×$7 + 2×$7 + 4×$3 + 2×$2 = $216
+- Handle rapid input gracefully
+- SMS lists all items correctly
+
+**Tests**: Rapid ordering, large cart, price calculation, priceCart function, session stability
+
+---
+
+## Test 12: Customer Interruptions and Corrections
+
+### Script
+1. Order "Mansaf".
+2. While AI is confirming, interrupt: "Wait, make it 2".
+3. Let AI finish.
+4. Interrupt again: "Actually 3".
+5. Say "And add Coke to that".
+6. During cart review, interrupt: "Hold on, remove one Mansaf".
+7. Pickup "ASAP", name "Scarlett", phone "0423680596".
+8. Complete order.
+
+### Rubric
+- Handle multiple interruptions gracefully
+- Update quantities correctly
+- Final: 2 Mansafs + 1 Coke
+- Total: 2×$33 + $3 = $69
+- Not get confused by interruptions
+
+**Tests**: Interruption handling, real-time modifications, patience
+
+---
+
+## Test 13: Similar Names and Clarification
+
+### Script
+1. Say "Mandy" (unclear if Mandi or Mansaf).
+2. When asked to clarify, say "The lamb one".
+3. Confirm "Lamb Mandi, yes".
+4. Add water.
+5. Pickup "in 30 minutes", name "Chloe", phone "0423680596".
+6. Complete order.
+
+### Rubric
+- Detect ambiguous item name
+- Ask for clarification naturally
+- Add correct item after confirmation
+- Total: $28 + $2 = $30
+
+**Tests**: Ambiguity handling, clarification requests, fuzzy matching
+
+---
+
+## Test 14: Silence and Patience Test
+
+### Script
+1. Order Lamb Mandi.
+2. When asked about addons, pause 10 seconds.
+3. Say "Sorry, yes nuts".
+4. When asked about drinks, pause 8 seconds.
+5. Say "Coke".
+6. Pickup "6 PM", name "Alexander", phone "0423680596".
+7. Complete order.
+
+### Rubric
+- Wait patiently during silences
+- Not hang up or error
+- Gentle prompting if needed
+- Continue normally after pauses
+- Complete order successfully
+
+**Tests**: Timeout handling, patience, session persistence during silence
+
+---
+
+## Test 15: End-to-End with All Features
+
+### Script
+1. Ask "Are you open? Can you text me the menu?"
+2. Receive menu.
+3. Order "Lamb Mandi with nuts and sultanas".
+4. Add "Chicken Mandi plain".
+5. Add "Mansaf with extra Jameed".
+6. Ask "What do I have?"
+7. Say "Remove the Chicken Mandi".
+8. Add "soup, rice side, Sprite, and water".
+9. Ask "What's my total?"
+10. Say "Make the Lamb Mandi extra spicy please".
+11. Pickup "6:45 PM".
+12. Name "William", phone "0423680596".
+13. Complete and verify SMS.
+14. Say "Thanks, bye" and verify call ends.
+
+### Rubric
+- checkOpen + sendMenuLink
+- Multiple items with addons
+- getCartState + removeCartItem
+- Add sides and drinks
+- priceCart
+- Special instructions (notes)
+- setPickupTime (specific time)
+- createOrder
+- SMS with correct formatting
+- endCall terminates
+- Total: $28 + $2 + $2 + $33 + $8 + $7 + $7 + $3 + $2 = $92
+
+**Tests**: Full system integration, all major functions, end-to-end flow
+
+---
+
+## Coverage Map
+
+| Function | Test(s) |
+|----------|---------|
+| `checkOpen` | 8, 15 |
+| `getCallerSmartContext` | 7 |
+| `quickAddItem` | All tests |
+| `getCartState` | 3, 11, 15 |
+| `removeCartItem` | 3, 12, 15 |
+| `clearCart` | 3 |
+| `editCartItem` | 5 |
+| `priceCart` | 11, 15 |
+| `setPickupTime` | 2, 15 |
+| `estimateReadyTime` | 1, 11 |
+| `sendMenuLink` | 4, 15 |
+| `createOrder` | All tests |
+| `repeatLastOrder` | 7 |
+| `endCall` | 1, 15 |
+
+**Edge Cases Covered:**
+- Addon-only items: Invalid (mentioned in rubrics)
+- Multiple addons on one item: Test 2, 4
+- Mixed addons on multiple items: Test 2
+- All drink options: Tests 2, 6, 11
+- All main dishes: Test 6
+- Standalone sides: Test 6
+- Time parsing (relative, specific, vague): Tests 1, 2, 3, 9
+- Cart operations: Test 3
+- Modifications: Tests 5, 12
+- Special instructions: Test 10
+- Large orders: Test 11
+- Interruptions: Test 12
+- Silence: Test 14
+- Business hours: Test 8
+- Off-topic: Test 4
+- Ambiguity: Test 13
+- SMS formatting: All tests
+
+---
+
+## Critical Success Criteria
 
 ### Must Always:
-✅ Call `createOrder()` before ending the call
-✅ Collect both name AND phone number
-✅ Set pickup time (via `setPickupTime()` or `estimateReadyTime()`)
-✅ Maintain consistent pricing (no $49 → $77 jumps)
-✅ Use natural, conversational language
-✅ Not use numbered lists when reading back orders
-✅ End call only after order is confirmed
+✅ Call `createOrder()` before ending call
+✅ Collect name AND phone number
+✅ Set pickup time
+✅ Maintain consistent pricing
+✅ Use natural language (no numbered lists)
+✅ Actually terminate with `endCall()`
+✅ SMS shows item names (not "main_dishes")
 
 ### Must Never:
 ❌ Create order without pickup time
-❌ Skip `createOrder()` function call
-❌ Use robotic/scripted language
-❌ List prices for every addon unless asked
-❌ Duplicate items when customer wants addons on ONE item
-❌ Maintain cart between different test calls (session isolation)
+❌ Skip createOrder()
+❌ Use robotic language
+❌ Duplicate items with same addons
+❌ Persist sessions between tests
+❌ List prices unless asked
 
 ---
 
-## Expected Response Times
+## Pass Criteria
 
-- **Initial greeting**: < 2 seconds
-- **Item addition**: < 3 seconds
-- **Cart state retrieval**: < 2 seconds
-- **Order creation**: < 5 seconds
-- **Total call duration**: 45-90 seconds for simple orders
+- **Per Test**: 85% functionality + conversation quality
+- **Overall Suite**: 90% pass rate (13/15 tests minimum)
+- **Zero Tolerance**: No order data loss, no price mismatches, no failed createOrder calls
 
 ---
 
-## SMS Validation
+## Testing Notes
 
-After each successful order, verify SMS receipt shows:
-- ✅ Proper item names (not "1x main_dishes")
-- ✅ Addons listed correctly (e.g., "+ nuts, sultanas")
-- ✅ Drink options shown (e.g., "Soft Drink (coke)")
-- ✅ Correct total matching what AI stated
-- ✅ Proper pickup time formatted
-
----
-
-## Notes for Testers
-
-1. **Natural Speech**: Speak naturally, don't over-enunciate
-2. **Varied Phrasing**: Use different ways to say the same thing
-3. **Interruptions**: Occasionally interrupt to test handling
-4. **Pauses**: Add realistic thinking pauses
-5. **Corrections**: Test "actually, I meant..." scenarios
-6. **Background Noise**: Test with moderate ambient sound if possible
-
----
-
-## Scoring
-
-Each test is scored on:
-- **Functionality** (50%): Did it complete the order correctly?
-- **Conversation Quality** (30%): Was it natural and pleasant?
-- **Accuracy** (20%): Were prices and details correct?
-
-**Pass Threshold**: 85% overall score across all tests
+1. Run tests in order 1-15 for progressive complexity
+2. Tests 8 requires specific day testing (Mon/Tue vs Wed-Sun)
+3. Test 7 requires prior order history setup
+4. Allow 2-minute gap between tests for session isolation
+5. Verify SMS receipt after each successful order
+6. Test on both mobile and actual phone calls
