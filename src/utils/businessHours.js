@@ -96,10 +96,10 @@ export function parsePickupTime(requestedTime) {
     const now = new Date();
     const zonedNow = utcToZonedTime(now, TIMEZONE);
 
-    // Handle relative times like "in 30 minutes"
-    const inMinutesMatch = requestedTime.match(/in (\d+) minutes?/i);
-    if (inMinutesMatch) {
-      const minutes = parseInt(inMinutesMatch[1]);
+    // Handle relative times like "in 30 minutes" or "30 minutes" or "23 minutes"
+    const minutesMatch = requestedTime.match(/(?:in\s+)?(\d+)\s*minutes?/i);
+    if (minutesMatch) {
+      const minutes = parseInt(minutesMatch[1]);
       const pickupTime = addMinutes(zonedNow, minutes);
       return {
         time: formatInTimeZone(pickupTime, TIMEZONE, 'h:mm a'),

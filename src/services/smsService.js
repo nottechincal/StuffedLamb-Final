@@ -91,14 +91,17 @@ class SMSService {
     const shopName = process.env.SHOP_NAME || businessData.name;
 
     const itemsList = order.items.map((item, index) => {
-      let desc = `${item.quantity || 1}x `;
+      let desc = `${item.quantity || 1}x ${item.item_name || item.category}`;
 
-      if (item.size) desc += `${item.size} `;
-      desc += item.category;
+      // Add addons if present
+      if (item.addons && item.addons.length > 0) {
+        desc += ` (+ ${item.addons.join(', ')})`;
+      }
 
-      if (item.protein) desc += ` (${item.protein})`;
-      if (item.brand) desc += ` (${item.brand})`;
-      if (item.isCombo) desc += ' COMBO';
+      // Add drink option if present
+      if (item.drink_option) {
+        desc += ` (${item.drink_option})`;
+      }
 
       return `${index + 1}. ${desc}`;
     }).join('\n');
@@ -136,13 +139,17 @@ Thank you for your order! 🥙
     }
 
     const itemsList = order.items.map((item, index) => {
-      let desc = `${item.quantity || 1}x `;
+      let desc = `${item.quantity || 1}x ${item.item_name || item.category}`;
 
-      if (item.size) desc += `${item.size} `;
-      desc += item.category;
+      // Add addons if present
+      if (item.addons && item.addons.length > 0) {
+        desc += ` (+ ${item.addons.join(', ')})`;
+      }
 
-      if (item.protein) desc += ` (${item.protein})`;
-      if (item.brand) desc += ` (${item.brand})`;
+      // Add drink option if present
+      if (item.drink_option) {
+        desc += ` (${item.drink_option})`;
+      }
 
       return `${index + 1}. ${desc}`;
     }).join('\n');
