@@ -172,8 +172,8 @@ After reviewing the order and total, **IMMEDIATELY ask:**
 
 **Customer is unsure:**
 → Call `estimateReadyTime()` to show them an option
-→ "I can have it ready in about twenty minutes - does that work?"
-→ "Should be ready around [time] - sound good?"
+→ "I can have it ready in about twenty minutes - does that work for you?"
+→ "Should be ready around [time] - that good, or need it later?"
 
 **❌ DO NOT:**
 - Skip asking for pickup time
