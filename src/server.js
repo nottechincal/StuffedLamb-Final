@@ -74,6 +74,23 @@ app.post('/webhook', async (req, res) => {
   try {
     const { message } = req.body;
 
+    // Detect call start and clear any stale session
+    if (message && message.type === 'assistant-request') {
+      const callId = getCallId(req);
+      if (callId && callId !== 'unknown') {
+        // Check if session exists and has been idle for more than 2 minutes
+        const existingSession = await sessionManager.getSession(callId);
+        if (existingSession && existingSession.metadata.startTime) {
+          const sessionAge = Date.now() - new Date(existingSession.metadata.startTime).getTime();
+          // If session is older than 2 minutes, it's likely from a previous call - reset it
+          if (sessionAge > 120000) {
+            logger.info(`Resetting stale session for call ${callId} (age: ${Math.round(sessionAge / 1000)}s)`);
+            await sessionManager.deleteSession(callId);
+          }
+        }
+      }
+    }
+
     if (!message || !message.toolCalls || message.toolCalls.length === 0) {
       return res.json({ results: [] });
     }
