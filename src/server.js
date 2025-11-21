@@ -75,9 +75,19 @@ app.post('/webhook', async (req, res) => {
     const results = [];
 
     for (const toolCall of message.toolCalls) {
-      const { function: func, id: toolCallId } = toolCall;
+      const { function: func, id: toolCallId} = toolCall;
       const functionName = func.name;
-      const params = func.arguments;
+
+      // Parse arguments - VAPI sends them as a JSON string
+      let params = func.arguments;
+      if (typeof params === 'string') {
+        try {
+          params = JSON.parse(params);
+        } catch (e) {
+          logger.error(`Failed to parse arguments for ${functionName}:`, e);
+          params = {};
+        }
+      }
 
       logger.info(`Processing: ${functionName}`, params);
 
@@ -230,7 +240,7 @@ async function handleQuickAddItem(req, params) {
 
   return {
     success: true,
-    message: `Added ${parsed.description} to cart`,
+    message: result.message || `Added ${result.item.item_name} to cart`,
     item: result.item
   };
 }

@@ -11,66 +11,121 @@ const menuData = JSON.parse(
 );
 
 class CartService {
+  /**
+   * Add item to cart
+   * @param {Array} cart - Current cart
+   * @param {Object} itemConfig - Item configuration
+   * @param {string} itemConfig.category - Category (main_dishes, sides, drinks)
+   * @param {string} itemConfig.item_id - Item ID (mansaf, lamb_mandi, etc.)
+   * @param {number} itemConfig.quantity - Quantity
+   * @param {Array<string>} itemConfig.addons - Addon IDs
+   * @param {string} itemConfig.drink_option - For drinks (coke, sprite, etc.)
+   * @param {string} itemConfig.notes - Special instructions
+   */
   addItemToCart(cart, itemConfig) {
-    const { category, size, protein, salads, sauces, extras, quantity, brand, salt_type, filling } = itemConfig;
+    const { category, item_id, quantity, addons, drink_option, notes } = itemConfig;
+
+    // Validate category and item
+    if (!menuData[category]) {
+      return {
+        success: false,
+        error: `Invalid category: ${category}`
+      };
+    }
+
+    const menuItem = menuData[category].items.find(item => item.id === item_id);
+    if (!menuItem) {
+      return {
+        success: false,
+        error: `Item not found: ${item_id} in category ${category}`
+      };
+    }
+
+    // Validate addons if provided
+    if (addons && addons.length > 0 && menuItem.addons) {
+      const validAddons = Object.keys(menuItem.addons);
+      const invalidAddons = addons.filter(addon => !validAddons.includes(addon));
+      if (invalidAddons.length > 0) {
+        return {
+          success: false,
+          error: `Invalid addons for ${item_id}: ${invalidAddons.join(', ')}`
+        };
+      }
+    }
+
+    // Validate drink option if provided
+    if (drink_option && menuItem.options) {
+      if (!menuItem.options.includes(drink_option.toLowerCase())) {
+        return {
+          success: false,
+          error: `Invalid drink option: ${drink_option}. Available: ${menuItem.options.join(', ')}`
+        };
+      }
+    }
 
     const item = {
       category,
+      item_id,
+      item_name: menuItem.name,
       quantity: quantity || 1,
+      addons: addons || [],
+      drink_option: drink_option || null,
+      notes: notes || null,
       timestamp: new Date().toISOString()
     };
 
-    // Add category-specific properties
-    if (category === 'kebabs' || category === 'hsp') {
-      item.size = size || 'large';
-      item.protein = protein || menuData[category].items[0].defaultProtein;
-      item.salads = salads || [];
-      item.sauces = sauces || [];
-
-      if (category === 'kebabs') {
-        item.extras = extras || [];
-      } else if (category === 'hsp') {
-        item.cheese = itemConfig.cheese !== undefined ? itemConfig.cheese : true;
-      }
-    } else if (category === 'chips') {
-      item.size = size || 'small';
-      item.salt_type = salt_type || 'chicken';
-    } else if (category === 'drinks') {
-      item.brand = brand || 'coke';
-    } else if (category === 'gozleme') {
-      item.filling = filling || 'cheese';
-    } else if (category === 'sweets') {
-      item.type = itemConfig.type || 'baklava';
-    }
-
     cart.push(item);
-    return { success: true, itemIndex: cart.length - 1, item };
-  }
-
-  addMultipleItems(cart, items) {
-    const addedItems = [];
-
-    for (const itemConfig of items) {
-      const result = this.addItemToCart(cart, itemConfig);
-      addedItems.push(result);
-    }
-
     return {
       success: true,
-      count: addedItems.length,
-      items: addedItems
+      itemIndex: cart.length - 1,
+      item,
+      message: `Added ${item.quantity}x ${menuItem.name} to cart`
     };
   }
 
+  /**
+   * Add multiple items at once
+   */
+  addMultipleItems(cart, items) {
+    const addedItems = [];
+    const errors = [];
+
+    for (const itemConfig of items) {
+      const result = this.addItemToCart(cart, itemConfig);
+      if (result.success) {
+        addedItems.push(result);
+      } else {
+        errors.push(result.error);
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      count: addedItems.length,
+      items: addedItems,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+
+  /**
+   * Remove item from cart
+   */
   removeItem(cart, itemIndex) {
     if (itemIndex < 0 || itemIndex >= cart.length) {
       return { success: false, error: 'Invalid item index' };
     }
 
     const removed = cart.splice(itemIndex, 1)[0];
-    return { success: true, removed };
+    return {
+      success: true,
+      removed,
+      message: `Removed ${removed.item_name} from cart`
+    };
   }
 
+  /**
+   * Edit cart item
+   */
   editItem(cart, itemIndex, modifications) {
     if (itemIndex < 0 || itemIndex >= cart.length) {
       return { success: false, error: 'Invalid item index' };
@@ -80,18 +135,46 @@ class CartService {
 
     // Apply modifications
     for (const [key, value] of Object.entries(modifications)) {
-      item[key] = value;
+      if (key === 'quantity' && value > 0) {
+        item.quantity = value;
+      } else if (key === 'addons' && Array.isArray(value)) {
+        // Validate addons before applying
+        const menuItem = this.getMenuItem(item.category, item.item_id);
+        if (menuItem && menuItem.addons) {
+          const validAddons = Object.keys(menuItem.addons);
+          const invalidAddons = value.filter(addon => !validAddons.includes(addon));
+          if (invalidAddons.length === 0) {
+            item.addons = value;
+          }
+        }
+      } else if (key === 'notes') {
+        item.notes = value;
+      }
     }
 
-    return { success: true, item };
+    return {
+      success: true,
+      item,
+      message: `Updated ${item.item_name}`
+    };
   }
 
+  /**
+   * Clear entire cart
+   */
   clearCart(cart) {
     const count = cart.length;
     cart.length = 0;
-    return { success: true, cleared: count };
+    return {
+      success: true,
+      cleared: count,
+      message: `Cleared ${count} item(s) from cart`
+    };
   }
 
+  /**
+   * Get cart state with formatted summary
+   */
   getCartState(cart) {
     const formatted = cart.map((item, index) => {
       return `${index + 1}. ${this.formatItem(item)}`;
@@ -100,10 +183,14 @@ class CartService {
     return {
       items: cart,
       count: cart.length,
-      formatted: formatted.join('\n')
+      formatted: formatted.join('\n'),
+      isEmpty: cart.length === 0
     };
   }
 
+  /**
+   * Format single item for display
+   */
   formatItem(item) {
     const parts = [];
 
@@ -112,153 +199,67 @@ class CartService {
       parts.push(`${item.quantity}x`);
     }
 
-    // Size and category
-    if (item.size) {
-      parts.push(`${item.size} ${item.category}`);
-    } else {
-      parts.push(item.category);
+    // Item name
+    parts.push(item.item_name);
+
+    // Drink option (for soft drinks)
+    if (item.drink_option) {
+      parts.push(`(${item.drink_option})`);
     }
 
-    // Protein
-    if (item.protein) {
-      parts.push(`(${item.protein})`);
-    }
-
-    // Filling (for gozleme)
-    if (item.filling) {
-      parts.push(`(${item.filling})`);
-    }
-
-    // Brand (for drinks)
-    if (item.brand) {
-      parts.push(`(${item.brand})`);
-    }
-
-    // Salt type
-    if (item.salt_type && item.salt_type !== 'none') {
-      parts.push(`${item.salt_type} salt`);
-    }
-
-    // Salads
-    if (item.salads && item.salads.length > 0) {
-      parts.push(`with ${item.salads.join(', ')}`);
-    }
-
-    // Sauces
-    if (item.sauces && item.sauces.length > 0) {
-      parts.push(`+ ${item.sauces.join(', ')} sauce`);
-    }
-
-    // Extras
-    if (item.extras && item.extras.length > 0) {
-      parts.push(`+ ${item.extras.join(', ')}`);
-    }
-
-    // Cheese
-    if (item.cheese === false) {
-      parts.push('(no cheese)');
-    }
-
-    // Combo indicator
-    if (item.isCombo) {
-      parts.push('🎉 COMBO');
-      if (item.comboDrink) {
-        parts.push(`with ${item.comboDrink}`);
+    // Addons
+    if (item.addons && item.addons.length > 0) {
+      const menuItem = this.getMenuItem(item.category, item.item_id);
+      if (menuItem && menuItem.addons) {
+        const addonNames = item.addons.map(addonId => {
+          const addon = menuItem.addons[addonId];
+          return addon ? addon.name : addonId;
+        });
+        parts.push(`+ ${addonNames.join(', ')}`);
       }
-      if (item.comboChips) {
-        parts.push(`+ ${item.comboChips.size} chips (${item.comboChips.salt})`);
-      }
+    }
+
+    // Notes
+    if (item.notes) {
+      parts.push(`[Note: ${item.notes}]`);
     }
 
     return parts.join(' ');
   }
 
-  convertToMeals(cart, options = {}) {
-    const {
-      itemIndices,
-      drinkBrand = 'coke',
-      chipsSize = 'small',
-      chipsSalt = 'chicken'
-    } = options;
-
-    let converted = 0;
-    const indicesToConvert = itemIndices || cart.map((_, i) => i);
-
-    for (const index of indicesToConvert) {
-      if (index < 0 || index >= cart.length) continue;
-
-      const item = cart[index];
-
-      // Only convert kebabs and HSPs
-      if (item.category === 'kebabs' && !item.isCombo) {
-        item.isCombo = true;
-        item.comboDrink = drinkBrand;
-        item.comboChips = {
-          size: chipsSize,
-          salt: chipsSalt
-        };
-        converted++;
-      } else if (item.category === 'hsp' && !item.isCombo) {
-        item.isCombo = true;
-        item.comboDrink = drinkBrand;
-        converted++;
-      }
-    }
-
-    return {
-      success: true,
-      converted,
-      message: `Converted ${converted} item(s) to combo meals`
-    };
+  /**
+   * Get menu item by category and ID
+   */
+  getMenuItem(category, item_id) {
+    if (!menuData[category]) return null;
+    return menuData[category].items.find(item => item.id === item_id);
   }
 
-  // Calculate price for a single item
+  /**
+   * Calculate price for a single item
+   */
   calculateItemPrice(item) {
-    let price = 0;
+    const menuItem = this.getMenuItem(item.category, item.item_id);
+    if (!menuItem) return 0;
 
-    if (item.category === 'kebabs' || item.category === 'hsp') {
-      const menuItem = menuData[item.category].items[0];
-      price = menuItem.sizes[item.size] || menuItem.sizes.large;
+    let price = menuItem.price;
 
-      // Add extras pricing for kebabs
-      if (item.category === 'kebabs' && item.extras) {
-        for (const extra of item.extras) {
-          price += menuItem.extraPrices[extra] || 0;
+    // Add addon prices
+    if (item.addons && item.addons.length > 0 && menuItem.addons) {
+      for (const addonId of item.addons) {
+        const addon = menuItem.addons[addonId];
+        if (addon && addon.price) {
+          price += addon.price;
         }
       }
-
-      // Add cheese pricing for HSP
-      if (item.category === 'hsp' && item.cheese) {
-        price += menuItem.cheesePrice || 0;
-      }
-
-      // Combo discount
-      if (item.isCombo) {
-        const drinkPrice = menuData.drinks.items[0].price;
-
-        if (item.category === 'kebabs') {
-          const chipsPrice = menuData.chips.items[0].sizes[item.comboChips?.size || 'small'];
-          const comboDiscount = menuData.combos.kebabCombo.discount;
-          price = price + drinkPrice + chipsPrice - comboDiscount;
-        } else {
-          const comboDiscount = menuData.combos.hspCombo.discount;
-          price = price + drinkPrice - comboDiscount;
-        }
-      }
-    } else if (item.category === 'chips') {
-      price = menuData.chips.items[0].sizes[item.size];
-    } else if (item.category === 'drinks') {
-      price = menuData.drinks.items[0].price;
-    } else if (item.category === 'gozleme') {
-      price = menuData.gozleme.items[0].price;
-    } else if (item.category === 'sweets') {
-      const sweetItem = menuData.sweets.items.find(s => s.id === item.type);
-      price = sweetItem?.price || 5.00;
     }
 
     return price * (item.quantity || 1);
   }
 
+  /**
+   * Calculate cart total with GST breakdown
+   */
   priceCart(cart) {
     let subtotal = 0;
 
@@ -274,10 +275,14 @@ class CartService {
       subtotal: subtotal.toFixed(2),
       gst: gst.toFixed(2),
       total: total.toFixed(2),
-      itemCount: cart.length
+      itemCount: cart.length,
+      currency: 'AUD'
     };
   }
 
+  /**
+   * Get complete order summary
+   */
   getOrderSummary(cart) {
     const pricing = this.priceCart(cart);
     const items = cart.map((item, index) =>
@@ -300,6 +305,38 @@ class CartService {
       pricing,
       itemCount: cart.length
     };
+  }
+
+  /**
+   * Get full menu for reference
+   */
+  getFullMenu() {
+    return menuData;
+  }
+
+  /**
+   * Search menu by keywords
+   */
+  searchMenu(keyword) {
+    const results = [];
+    const lowerKeyword = keyword.toLowerCase();
+
+    for (const [category, categoryData] of Object.entries(menuData)) {
+      for (const item of categoryData.items) {
+        if (
+          item.name.toLowerCase().includes(lowerKeyword) ||
+          item.id.toLowerCase().includes(lowerKeyword) ||
+          (item.description && item.description.toLowerCase().includes(lowerKeyword))
+        ) {
+          results.push({
+            category,
+            item
+          });
+        }
+      }
+    }
+
+    return results;
   }
 }
 

@@ -2,260 +2,317 @@ import compromise from 'compromise';
 
 class NLPParser {
   constructor() {
-    // Patterns and keywords
-    this.categories = {
-      kebab: ['kebab', 'kebabs'],
-      hsp: ['hsp', 'halal snack pack', 'snack pack'],
-      chips: ['chips', 'fries'],
-      drinks: ['drink', 'coke', 'pepsi', 'sprite', 'fanta', 'solo', 'lift', 'water', 'beverage'],
-      gozleme: ['gozleme', 'gözleme'],
-      sweets: ['baklava', 'turkish delight', 'dessert']
+    // Main dish patterns
+    this.mainDishes = {
+      'mansaf': 'mansaf',
+      'jordanian mansaf': 'mansaf',
+      'lamb mansaf': 'mansaf',
+      'lamb mandi': 'lamb_mandi',
+      'mandi lamb': 'lamb_mandi',
+      'lamb mandi rice': 'lamb_mandi',
+      'chicken mandi': 'chicken_mandi',
+      'mandi chicken': 'chicken_mandi',
+      'chicken mandi rice': 'chicken_mandi'
     };
 
-    this.sizes = {
-      small: ['small', 's'],
-      large: ['large', 'l', 'big']
+    // Addon patterns
+    this.addonPatterns = {
+      'nuts': 'nuts',
+      'nut': 'nuts',
+      'sultanas': 'sultanas',
+      'sultana': 'sultanas',
+      'raisins': 'sultanas',
+      'raisin': 'sultanas',
+      'extra jameed': 'extra_jameed',
+      'more jameed': 'extra_jameed',
+      'jameed sauce': 'extra_jameed',
+      'yogurt sauce': 'extra_jameed',
+      'extra rice on the plate': 'extra_rice_plate',
+      'extra rice on plate': 'extra_rice_plate',
+      'more rice on plate': 'extra_rice_plate',
+      'extra rice side': 'extra_rice_side',
+      'extra rice on the side': 'extra_rice_side',
+      'side of extra rice': 'extra_rice_side',
+      'extra rice': 'extra_rice_plate' // Default to on-plate
     };
 
-    this.proteins = {
-      lamb: ['lamb'],
-      chicken: ['chicken', 'chook'],
-      mixed: ['mixed', 'combo', 'both'],
-      falafel: ['falafel', 'vego', 'vegetarian']
+    // Drink patterns
+    this.drinkPatterns = {
+      'coke': { item_id: 'soft_drink', option: 'coke' },
+      'coca cola': { item_id: 'soft_drink', option: 'coke' },
+      'pepsi': { item_id: 'soft_drink', option: 'pepsi' },
+      'sprite': { item_id: 'soft_drink', option: 'sprite' },
+      'fanta': { item_id: 'soft_drink', option: 'fanta' },
+      'l&p': { item_id: 'soft_drink', option: 'l&p' },
+      'lemon and paeroa': { item_id: 'soft_drink', option: 'l&p' },
+      'coke no sugar': { item_id: 'soft_drink', option: 'coke no sugar' },
+      'diet coke': { item_id: 'soft_drink', option: 'coke no sugar' },
+      'water': { item_id: 'water', option: null },
+      'bottled water': { item_id: 'water', option: null }
     };
 
-    this.salads = ['lettuce', 'tomato', 'onion', 'cucumber', 'pickles', 'jalapeños', 'jalapenos'];
-    this.sauces = ['garlic', 'chilli', 'chili', 'bbq', 'barbecue', 'yogurt', 'yoghurt'];
-    this.extras = ['cheese', 'avocado', 'extra meat'];
-    this.saltTypes = ['chicken salt', 'normal salt', 'no salt'];
-    this.drinkBrands = ['coke', 'pepsi', 'sprite', 'fanta', 'solo', 'lift', 'water'];
-    this.fillings = ['cheese', 'spinach', 'potato', 'meat'];
+    // Side patterns
+    this.sidePatterns = {
+      'soup': 'soup',
+      'side of soup': 'soup',
+      'rice': 'rice_side',
+      'side of rice': 'rice_side',
+      'rice side': 'rice_side',
+      'just rice': 'rice_side'
+    };
+
+    // Number words
+    this.numberWords = {
+      'one': 1, 'a': 1, 'an': 1,
+      'two': 2, 'couple': 2,
+      'three': 3,
+      'four': 4,
+      'five': 5,
+      'six': 6,
+      'seven': 7,
+      'eight': 8,
+      'nine': 9,
+      'ten': 10
+    };
   }
 
+  /**
+   * Main parse function - converts natural language to structured item config
+   */
   parse(description) {
     const lower = description.toLowerCase().trim();
-    const doc = compromise(description);
 
     // Extract quantity
-    let quantity = 1;
-    const numbers = doc.numbers().out('array');
-    if (numbers.length > 0) {
-      const num = parseInt(numbers[0]);
-      if (!isNaN(num) && num > 0 && num < 50) {
-        quantity = num;
-      }
-    }
+    const quantity = this.extractQuantity(lower);
 
-    // Detect category
-    const category = this.detectCategory(lower);
-    if (!category) {
+    // Try to detect main dish
+    const mainDish = this.detectMainDish(lower);
+    if (mainDish) {
       return {
-        success: false,
-        error: 'Could not identify item type. Try being more specific (e.g., "kebab", "chips", "drink")'
+        success: true,
+        itemConfig: {
+          category: 'main_dishes',
+          item_id: mainDish,
+          quantity,
+          addons: this.detectAddons(lower, mainDish)
+        }
       };
     }
 
-    // Build item config based on category
-    const itemConfig = { category, quantity };
-
-    if (category === 'kebabs' || category === 'hsp') {
-      itemConfig.size = this.detectSize(lower);
-      itemConfig.protein = this.detectProtein(lower);
-      itemConfig.salads = this.detectSalads(lower);
-      itemConfig.sauces = this.detectSauces(lower);
-
-      if (category === 'kebabs') {
-        itemConfig.extras = this.detectExtras(lower);
-      } else {
-        itemConfig.cheese = !lower.includes('no cheese');
-      }
-    } else if (category === 'chips') {
-      itemConfig.size = this.detectSize(lower);
-      itemConfig.salt_type = this.detectSaltType(lower);
-    } else if (category === 'drinks') {
-      itemConfig.brand = this.detectDrink(lower);
-    } else if (category === 'gozleme') {
-      itemConfig.filling = this.detectFilling(lower);
-    } else if (category === 'sweets') {
-      itemConfig.type = this.detectSweet(lower);
+    // Try to detect drink
+    const drink = this.detectDrink(lower);
+    if (drink) {
+      return {
+        success: true,
+        itemConfig: {
+          category: 'drinks',
+          item_id: drink.item_id,
+          drink_option: drink.option,
+          quantity
+        }
+      };
     }
 
+    // Try to detect side
+    const side = this.detectSide(lower);
+    if (side) {
+      return {
+        success: true,
+        itemConfig: {
+          category: 'sides',
+          item_id: side,
+          quantity
+        }
+      };
+    }
+
+    // Could not parse
     return {
-      success: true,
-      itemConfig,
-      description: this.formatDescription(itemConfig)
+      success: false,
+      error: `Could not identify menu item from: "${description}". Try saying the dish name like "lamb mandi" or "mansaf"`,
+      suggestion: 'Available dishes: Mansaf, Lamb Mandi, Chicken Mandi'
     };
   }
 
-  detectCategory(text) {
-    // Check for specific drink brands first
-    for (const brand of this.drinkBrands) {
-      if (text.includes(brand)) {
-        return 'drinks';
+  /**
+   * Extract quantity from description
+   */
+  extractQuantity(text) {
+    // Try to find digits first
+    const digitMatch = text.match(/(\d+)\s*(?:x\s*)?/);
+    if (digitMatch) {
+      return parseInt(digitMatch[1]);
+    }
+
+    // Try number words
+    for (const [word, num] of Object.entries(this.numberWords)) {
+      const regex = new RegExp(`\\b${word}\\b`, 'i');
+      if (regex.test(text)) {
+        return num;
       }
     }
 
-    // Check for HSP before kebab (since HSP might contain "kebab" in description)
-    if (this.categories.hsp.some(kw => text.includes(kw))) {
-      return 'hsp';
-    }
+    return 1; // Default quantity
+  }
 
-    for (const [category, keywords] of Object.entries(this.categories)) {
-      if (keywords.some(kw => text.includes(kw))) {
-        return category === 'kebab' ? 'kebabs' : category;
+  /**
+   * Detect main dish from description
+   */
+  detectMainDish(text) {
+    // Check each pattern (longest first to match more specific patterns)
+    const patterns = Object.entries(this.mainDishes).sort((a, b) => b[0].length - a[0].length);
+
+    for (const [pattern, itemId] of patterns) {
+      if (text.includes(pattern)) {
+        return itemId;
       }
     }
 
     return null;
   }
 
-  detectSize(text) {
-    if (this.sizes.small.some(kw => text.includes(kw))) {
-      return 'small';
-    }
-    if (this.sizes.large.some(kw => text.includes(kw))) {
-      return 'large';
-    }
-    return 'large'; // default
-  }
+  /**
+   * Detect addons for a main dish
+   */
+  detectAddons(text, dishId) {
+    const addons = [];
 
-  detectProtein(text) {
-    for (const [protein, keywords] of Object.entries(this.proteins)) {
-      if (keywords.some(kw => text.includes(kw))) {
-        return protein;
+    // For mansaf, check for mansaf-specific addons
+    if (dishId === 'mansaf') {
+      if (text.includes('jameed') || text.includes('yogurt')) {
+        addons.push('extra_jameed');
       }
-    }
-    return 'lamb'; // default
-  }
-
-  detectSalads(text) {
-    const detected = [];
-
-    // Check for "no salad" or similar
-    if (text.includes('no salad') || text.includes('without salad')) {
-      return [];
-    }
-
-    for (const salad of this.salads) {
-      if (text.includes(salad)) {
-        detected.push(salad);
-      }
-    }
-
-    return detected;
-  }
-
-  detectSauces(text) {
-    const detected = [];
-
-    // Check for "no sauce"
-    if (text.includes('no sauce')) {
-      return [];
-    }
-
-    for (const sauce of this.sauces) {
-      if (text.includes(sauce)) {
-        // Normalize chilli/chili to chilli
-        const normalized = sauce === 'chili' ? 'chilli' : sauce;
-        if (!detected.includes(normalized)) {
-          detected.push(normalized);
+      if (text.includes('extra rice')) {
+        if (text.includes('side')) {
+          // Mansaf doesn't have side rice addon, only on-plate
+          addons.push('extra_rice_plate');
+        } else {
+          addons.push('extra_rice_plate');
         }
       }
     }
 
-    return detected;
-  }
-
-  detectExtras(text) {
-    const detected = [];
-
-    for (const extra of this.extras) {
-      if (text.includes(extra)) {
-        detected.push(extra);
+    // For mandi dishes (lamb or chicken), check for mandi-specific addons
+    if (dishId === 'lamb_mandi' || dishId === 'chicken_mandi') {
+      if (text.includes('nut')) {
+        addons.push('nuts');
+      }
+      if (text.includes('sultana') || text.includes('raisin')) {
+        addons.push('sultanas');
+      }
+      if (text.includes('extra rice')) {
+        if (text.includes('side') || text.includes('on the side')) {
+          addons.push('extra_rice_side');
+        } else if (text.includes('plate') || text.includes('on the plate')) {
+          addons.push('extra_rice_plate');
+        } else {
+          // Default to on-plate
+          addons.push('extra_rice_plate');
+        }
       }
     }
 
-    return detected;
+    return addons;
   }
 
-  detectSaltType(text) {
-    if (text.includes('chicken salt')) {
-      return 'chicken';
-    }
-    if (text.includes('normal salt')) {
-      return 'normal';
-    }
-    if (text.includes('no salt')) {
-      return 'none';
-    }
-    return 'chicken'; // default
-  }
-
+  /**
+   * Detect drink from description
+   */
   detectDrink(text) {
-    for (const brand of this.drinkBrands) {
-      if (text.includes(brand)) {
-        return brand;
+    // Check patterns (longest first)
+    const patterns = Object.entries(this.drinkPatterns).sort((a, b) => b[0].length - a[0].length);
+
+    for (const [pattern, drink] of patterns) {
+      if (text.includes(pattern)) {
+        return drink;
       }
     }
-    return 'coke'; // default
+
+    return null;
   }
 
-  detectFilling(text) {
-    if (text.includes('spinach')) {
-      return 'spinach-cheese';
-    }
-    for (const filling of this.fillings) {
-      if (text.includes(filling)) {
-        return filling;
+  /**
+   * Detect side dish from description
+   */
+  detectSide(text) {
+    // Check patterns (longest first)
+    const patterns = Object.entries(this.sidePatterns).sort((a, b) => b[0].length - a[0].length);
+
+    for (const [pattern, itemId] of patterns) {
+      if (text.includes(pattern)) {
+        return itemId;
       }
     }
-    return 'cheese'; // default
+
+    return null;
   }
 
-  detectSweet(text) {
-    if (text.includes('baklava')) {
-      return 'baklava';
+  /**
+   * Parse multiple items from a description (e.g., "2 lamb mandi and a coke")
+   */
+  parseMultiple(description) {
+    const lower = description.toLowerCase();
+    const items = [];
+
+    // Split by common separators
+    const parts = lower.split(/\s+and\s+|\s+,\s+|,\s+/);
+
+    for (const part of parts) {
+      const parsed = this.parse(part.trim());
+      if (parsed.success) {
+        items.push(parsed.itemConfig);
+      }
     }
-    if (text.includes('turkish delight') || text.includes('delight')) {
-      return 'turkish-delight';
+
+    if (items.length > 0) {
+      return {
+        success: true,
+        items
+      };
     }
-    return 'baklava'; // default
+
+    // Fall back to single parse
+    return this.parse(description);
   }
 
-  formatDescription(itemConfig) {
-    const parts = [];
+  /**
+   * Suggest corrections for common misspellings
+   */
+  suggestCorrection(text) {
+    const suggestions = [];
 
-    if (itemConfig.quantity > 1) {
-      parts.push(`${itemConfig.quantity}x`);
+    // Check for partial matches
+    const lower = text.toLowerCase();
+
+    if (lower.includes('man') && !lower.includes('mandi')) {
+      suggestions.push('Did you mean "Mansaf" or "Mandi"?');
     }
 
-    if (itemConfig.size) {
-      parts.push(itemConfig.size);
+    if (lower.includes('lamb') && !lower.includes('mandi')) {
+      suggestions.push('We have Lamb Mandi ($28)');
     }
 
-    parts.push(itemConfig.category);
-
-    if (itemConfig.protein) {
-      parts.push(`(${itemConfig.protein})`);
+    if (lower.includes('chicken')) {
+      suggestions.push('We have Chicken Mandi ($23)');
     }
 
-    if (itemConfig.brand) {
-      parts.push(`(${itemConfig.brand})`);
+    if (suggestions.length > 0) {
+      return suggestions.join(' ');
     }
 
-    if (itemConfig.filling) {
-      parts.push(`(${itemConfig.filling})`);
-    }
+    return 'Try saying: "Mansaf", "Lamb Mandi", or "Chicken Mandi"';
+  }
 
-    if (itemConfig.salads && itemConfig.salads.length > 0) {
-      parts.push(`with ${itemConfig.salads.join(', ')}`);
-    }
-
-    if (itemConfig.sauces && itemConfig.sauces.length > 0) {
-      parts.push(`+ ${itemConfig.sauces.join(' & ')} sauce`);
-    }
-
-    return parts.join(' ');
+  /**
+   * Get all valid items for autocomplete/suggestions
+   */
+  getAllItems() {
+    return {
+      mainDishes: Object.keys(this.mainDishes),
+      drinks: Object.keys(this.drinkPatterns),
+      sides: Object.keys(this.sidePatterns),
+      addons: Object.keys(this.addonPatterns)
+    };
   }
 }
 

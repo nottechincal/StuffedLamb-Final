@@ -4,17 +4,17 @@
   "phone": "+61423680596",
   "timezone": "Australia/Melbourne",
   "hours": {
-    "monday": { "open": "11:00", "close": "21:00" },
-    "tuesday": { "open": "11:00", "close": "21:00" },
-    "wednesday": { "open": "11:00", "close": "21:00" },
-    "thursday": { "open": "11:00", "close": "21:00" },
-    "friday": { "open": "11:00", "close": "22:00" },
-    "saturday": { "open": "11:00", "close": "22:00" },
-    "sunday": { "open": "11:00", "close": "21:00" }
+    "monday": { "closed": true },
+    "tuesday": { "closed": true },
+    "wednesday": { "open": "13:00", "close": "21:00" },
+    "thursday": { "open": "13:00", "close": "21:00" },
+    "friday": { "open": "13:00", "close": "21:00" },
+    "saturday": { "open": "13:00", "close": "22:00" },
+    "sunday": { "open": "13:00", "close": "22:00" }
   },
   "orderSettings": {
-    "defaultPrepTime": 20,
-    "prepTimePerItem": 3,
+    "defaultPrepTime": 25,
+    "prepTimePerItem": 5,
     "maxAdvanceOrderHours": 4
   },
   "gst": {
