@@ -8,10 +8,16 @@ class NLPParser {
       'jordanian mansaf': 'mansaf',
       'lamb mansaf': 'mansaf',
       'lamb mandi': 'lamb_mandi',
+      'lamb mandy': 'lamb_mandi',  // Speech-to-text often transcribes as "Mandy"
+      'lam mandi': 'lamb_mandi',   // Mishearing
+      'lam mandy': 'lamb_mandi',
       'mandi lamb': 'lamb_mandi',
+      'mandy lamb': 'lamb_mandi',
       'lamb mandi rice': 'lamb_mandi',
       'chicken mandi': 'chicken_mandi',
+      'chicken mandy': 'chicken_mandi',  // Speech-to-text variant
       'mandi chicken': 'chicken_mandi',
+      'mandy chicken': 'chicken_mandi',
       'chicken mandi rice': 'chicken_mandi'
     };
 
