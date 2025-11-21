@@ -420,7 +420,8 @@ async function handleCreateOrder(req, params) {
   if (!session.metadata.pickupTime && !session.metadata.estimatedReadyTime) {
     return {
       success: false,
-      error: 'Please set a pickup time first using estimateReadyTime or setPickupTime'
+      error: 'I need to know when you\'d like to pick this up. Would you like it as soon as possible, or at a specific time?',
+      requiresPickupTime: true
     };
   }
 
