@@ -1,0 +1,123 @@
+{
+  "kebabs": {
+    "name": "Kebabs",
+    "description": "Traditional Turkish kebabs with your choice of protein and fresh ingredients",
+    "items": [
+      {
+        "id": "kebab",
+        "name": "Kebab",
+        "category": "kebabs",
+        "sizes": {
+          "small": 13.00,
+          "large": 16.00
+        },
+        "proteins": ["lamb", "chicken", "mixed", "falafel"],
+        "defaultProtein": "lamb",
+        "salads": ["lettuce", "tomato", "onion", "cucumber", "pickles"],
+        "sauces": ["garlic", "chilli", "bbq", "yogurt"],
+        "extras": ["cheese", "avocado", "extra meat"],
+        "extraPrices": {
+          "cheese": 2.00,
+          "avocado": 2.50,
+          "extra meat": 4.00
+        }
+      }
+    ]
+  },
+  "hsp": {
+    "name": "Halal Snack Pack (HSP)",
+    "description": "Chips topped with your choice of protein, sauces, and cheese",
+    "items": [
+      {
+        "id": "hsp",
+        "name": "HSP",
+        "category": "hsp",
+        "sizes": {
+          "small": 14.00,
+          "large": 18.00
+        },
+        "proteins": ["lamb", "chicken", "mixed"],
+        "defaultProtein": "mixed",
+        "salads": ["lettuce", "tomato", "onion", "jalapeños"],
+        "sauces": ["garlic", "chilli", "bbq"],
+        "cheese": true,
+        "cheesePrice": 2.00
+      }
+    ]
+  },
+  "chips": {
+    "name": "Chips",
+    "description": "Crispy golden chips",
+    "items": [
+      {
+        "id": "chips",
+        "name": "Chips",
+        "category": "chips",
+        "sizes": {
+          "small": 6.00,
+          "large": 9.00
+        },
+        "saltTypes": ["chicken", "normal", "none"],
+        "defaultSalt": "chicken"
+      }
+    ]
+  },
+  "drinks": {
+    "name": "Drinks",
+    "description": "Soft drinks and beverages",
+    "items": [
+      {
+        "id": "drink",
+        "name": "Soft Drink",
+        "category": "drinks",
+        "price": 3.50,
+        "brands": ["coke", "pepsi", "sprite", "fanta", "solo", "lift", "water"]
+      }
+    ]
+  },
+  "gozleme": {
+    "name": "Gözleme",
+    "description": "Traditional Turkish flatbread",
+    "items": [
+      {
+        "id": "gozleme",
+        "name": "Gözleme",
+        "category": "gozleme",
+        "price": 12.00,
+        "fillings": ["cheese", "spinach-cheese", "potato", "meat"]
+      }
+    ]
+  },
+  "sweets": {
+    "name": "Sweets",
+    "description": "Traditional Turkish desserts",
+    "items": [
+      {
+        "id": "baklava",
+        "name": "Baklava",
+        "category": "sweets",
+        "price": 5.00
+      },
+      {
+        "id": "turkish-delight",
+        "name": "Turkish Delight",
+        "category": "sweets",
+        "price": 4.00
+      }
+    ]
+  },
+  "combos": {
+    "name": "Combo Meals",
+    "description": "Value combos with drinks and chips",
+    "kebabCombo": {
+      "name": "Kebab Combo",
+      "description": "Kebab + Chips + Drink",
+      "discount": 2.00
+    },
+    "hspCombo": {
+      "name": "HSP Combo",
+      "description": "HSP + Drink (HSP already includes chips)",
+      "discount": 1.50
+    }
+  }
+}
