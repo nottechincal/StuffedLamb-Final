@@ -136,6 +136,11 @@ Call your VAPI phone number and say:
 → This is normal - system falls back to in-memory sessions
 → Everything still works, just without persistence
 
+### "Server hanging on startup"
+→ Check if REDIS_HOST is set in .env
+→ If Redis is not running, comment out REDIS_HOST line
+→ Server will then use in-memory sessions instead
+
 ### "Tests failing"
 → Make sure server is running: `npm start`
 → Some failures are expected during initial setup
