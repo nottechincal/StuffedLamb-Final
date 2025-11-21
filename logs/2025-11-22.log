@@ -55,3 +55,4 @@
 {"timestamp":"2025-11-21T14:30:00.221Z","level":"info","message":"Processing: createOrder","data":{"customerName":"WittyWolf936","customerPhone":"555-123-4567"}}
 {"timestamp":"2025-11-21T14:30:00.934Z","level":"success","message":"Order created: 20251122-020","data":{"total":"58.00"}}
 {"timestamp":"2025-11-21T14:30:00.935Z","level":"info","message":"Webhook: createOrder","data":{"params":{"customerName":"WittyWolf936","customerPhone":"555-123-4567"},"result":{"success":true,"orderId":"60d10b97-47be-4905-b54e-c5f4a283a868","orderNumber":"20251122-020","total":"58.00","pickupTime":"Saturday, November 22nd at 8:00 PM","message":"Perfect! Your order 020 comes to 58 dollars, ready for pickup Saturday at 8 PM"}}}
+{"timestamp":"2025-11-21T14:37:41.201Z","level":"info","message":"Shutting down gracefully...","data":null}
