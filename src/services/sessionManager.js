@@ -30,13 +30,16 @@ class SessionManager {
 
         await this.redisClient.connect();
         this.useRedis = true;
-        console.log('✅ Connected to Redis for session storage');
+        const okIcon = process.platform === 'win32' ? '[OK]' : '✅';
+        console.log(`${okIcon} Connected to Redis for session storage`);
       } catch (error) {
-        console.warn('⚠️  Redis unavailable, using in-memory sessions:', error.message);
+        const warnIcon = process.platform === 'win32' ? '[WARN]' : '⚠️ ';
+        console.warn(`${warnIcon} Redis unavailable, using in-memory sessions:`, error.message);
         this.useRedis = false;
       }
     } else {
-      console.log('ℹ️  Using in-memory session storage');
+      const infoIcon = process.platform === 'win32' ? '[INFO]' : 'ℹ️ ';
+      console.log(`${infoIcon} Using in-memory session storage`);
     }
 
     // Clean up old in-memory sessions periodically
