@@ -215,14 +215,15 @@ class CartService {
    * Get cart state with formatted summary
    */
   getCartState(cart) {
-    const formatted = cart.map((item, index) => {
-      return `${index + 1}. ${this.formatItem(item)}`;
+    // Don't number items - just list them naturally
+    const formatted = cart.map((item) => {
+      return this.formatItem(item);
     });
 
     return {
       items: cart,
       count: cart.length,
-      formatted: formatted.join('\n'),
+      formatted: formatted.join(', '),  // Comma-separated, not numbered list
       isEmpty: cart.length === 0
     };
   }
@@ -324,20 +325,15 @@ class CartService {
    */
   getOrderSummary(cart) {
     const pricing = this.priceCart(cart);
-    const items = cart.map((item, index) =>
-      `${index + 1}. ${this.formatItem(item)} - $${this.calculateItemPrice(item).toFixed(2)}`
+    // Don't number items - keep it natural
+    const items = cart.map((item) =>
+      `${this.formatItem(item)} - $${this.calculateItemPrice(item).toFixed(2)}`
     );
 
-    // Format for natural speech - no emojis, clean text
+    // Brief summary - just items and total
     const summary = [
-      'ORDER SUMMARY',
-      '---',
       ...items,
-      '---',
-      `Subtotal: ${naturalSpeech.formatMoney(pricing.subtotal)}`,
-      `GST included: ${naturalSpeech.formatMoney(pricing.gst)}`,
-      `TOTAL: ${naturalSpeech.formatMoney(pricing.total)}`,
-      '---'
+      `TOTAL: ${naturalSpeech.formatMoney(pricing.total)}`
     ].join('\n');
 
     return {
