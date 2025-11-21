@@ -75,7 +75,7 @@ create_tool "getCallerSmartContext" \
 
 # These are called MANY times - must be silent
 create_tool "quickAddItem" \
-    "Parse natural language and add item to cart. Examples: '2 large lamb kebabs with garlic sauce', 'small chips', 'coke'" \
+    "Parse natural language and add item to cart. Examples: 'lamb mandi', 'mansaf', 'chicken mandi with nuts', 'coke', 'soup'" \
     '{"type":"object","properties":{"description":{"type":"string","description":"Natural language item description"}},"required":["description"]}' \
     'null'
 
