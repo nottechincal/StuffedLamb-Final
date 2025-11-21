@@ -22,7 +22,13 @@ export function isShopOpen() {
 
     const hours = businessData.hours[dayOfWeek];
 
-    if (!hours || !hours.open || !hours.close) {
+    // Check if the day is explicitly closed
+    if (!hours || hours.closed === true) {
+      return false;
+    }
+
+    // Check if opening hours are defined
+    if (!hours.open || !hours.close) {
       return false;
     }
 
@@ -36,14 +42,35 @@ export function isShopOpen() {
 export function getNextOpenTime() {
   const now = new Date();
   const zonedNow = utcToZonedTime(now, TIMEZONE);
-  const dayOfWeek = format(zonedNow, 'EEEE').toLowerCase();
-  const hours = businessData.hours[dayOfWeek];
+  const currentDayName = format(zonedNow, 'EEEE').toLowerCase();
+  const currentTime = format(zonedNow, 'HH:mm');
 
-  if (hours && hours.open) {
-    return `${hours.open} today`;
+  const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const currentDayIndex = dayOrder.indexOf(currentDayName);
+
+  // Check if shop opens later today
+  const todayHours = businessData.hours[currentDayName];
+  if (todayHours && !todayHours.closed && todayHours.open && currentTime < todayHours.open) {
+    return `${todayHours.open} today`;
   }
 
-  return 'during business hours';
+  // Find next open day
+  for (let i = 1; i <= 7; i++) {
+    const nextDayIndex = (currentDayIndex + i) % 7;
+    const nextDayName = dayOrder[nextDayIndex];
+    const nextDayHours = businessData.hours[nextDayName];
+
+    if (nextDayHours && !nextDayHours.closed && nextDayHours.open) {
+      if (i === 1) {
+        return `${nextDayHours.open} tomorrow`;
+      } else {
+        const dayLabel = nextDayName.charAt(0).toUpperCase() + nextDayName.slice(1);
+        return `${dayLabel} at ${nextDayHours.open}`;
+      }
+    }
+  }
+
+  return 'Please check our hours';
 }
 
 export function estimateReadyTime(queueSize = 0) {
