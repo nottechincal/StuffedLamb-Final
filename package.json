@@ -7,7 +7,13 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "pm2:start": "pm2 start ecosystem.config.js --env production",
+    "pm2:stop": "pm2 stop stuffed-lamb",
+    "pm2:restart": "pm2 restart stuffed-lamb",
+    "pm2:logs": "pm2 logs stuffed-lamb",
+    "pm2:monitor": "pm2 monit",
+    "pm2:delete": "pm2 delete stuffed-lamb"
   },
   "keywords": [
     "vapi",

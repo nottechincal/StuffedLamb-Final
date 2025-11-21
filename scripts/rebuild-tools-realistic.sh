@@ -81,7 +81,7 @@ create_tool "quickAddItem" \
 
 create_tool "addMultipleItemsToCart" \
     "Batch add multiple items" \
-    '{"type":"object","properties":{"items":{"type":"array"}},"required":["items"]}' \
+    '{"type":"object","properties":{"items":{"type":"array","items":{"type":"object"}}},"required":["items"]}' \
     'null'
 
 create_tool "getCartState" \
@@ -101,7 +101,7 @@ create_tool "clearCart" \
 
 create_tool "editCartItem" \
     "Modify item properties (size, protein, salads, sauces, etc)" \
-    '{"type":"object","properties":{"itemIndex":{"type":"number"},"modifications":{"type":"object"}},"required":["itemIndex","modifications"]}' \
+    '{"type":"object","properties":{"itemIndex":{"type":"number"},"modifications":{"type":"object","additionalProperties":true}},"required":["itemIndex","modifications"]}' \
     'null'
 
 create_tool "priceCart" \
@@ -111,7 +111,7 @@ create_tool "priceCart" \
 
 create_tool "convertItemsToMeals" \
     "Convert kebabs/HSPs to combo meals with discount" \
-    '{"type":"object","properties":{"itemIndices":{"type":"array"},"drinkBrand":{"type":"string"},"chipsSize":{"type":"string"},"chipsSalt":{"type":"string"}},"required":[]}' \
+    '{"type":"object","properties":{"itemIndices":{"type":"array","items":{"type":"number"}},"drinkBrand":{"type":"string"},"chipsSize":{"type":"string"},"chipsSalt":{"type":"string"}},"required":[]}' \
     'null'
 
 create_tool "getOrderSummary" \
