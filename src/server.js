@@ -16,9 +16,9 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Middleware - increase payload limit for large conversation transcripts
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['*'];
@@ -340,7 +340,12 @@ async function handleSetPickupTime(req, params) {
   const callId = getCallId(req);
   const session = await getOrCreateSession(callId);
 
+  // Debug logging to see what Vapi is sending
+  logger.info('setPickupTime called with:', { requestedTime: params.requestedTime });
+
   const parsed = parsePickupTime(params.requestedTime);
+
+  logger.info('Parsed result:', parsed);
 
   if (parsed) {
     session.metadata.pickupTime = parsed.fullTime;
@@ -508,9 +513,35 @@ async function handleEndCall(req) {
   ];
   const message = farewells[Math.floor(Math.random() * farewells.length)];
 
+  // Actually terminate the call using Vapi's API
+  try {
+    const vapiApiKey = process.env.VAPI_API_KEY;
+    if (vapiApiKey && callId) {
+      const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${vapiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'ended'
+        })
+      });
+
+      if (!response.ok) {
+        logger.warn('Failed to end call via Vapi API:', await response.text());
+      } else {
+        logger.info('Call ended successfully via Vapi API');
+      }
+    }
+  } catch (error) {
+    logger.error('Error ending call:', error);
+  }
+
   return {
     success: true,
-    message
+    message,
+    endCall: true  // Signal to Vapi to end the call
   };
 }
 

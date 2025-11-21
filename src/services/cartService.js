@@ -64,6 +64,27 @@ class CartService {
       }
     }
 
+    // Check if identical item already exists in cart
+    const normalizedAddons = (addons || []).sort();
+    const existingItemIndex = cart.findIndex(item =>
+      item.item_id === item_id &&
+      item.drink_option === (drink_option || null) &&
+      JSON.stringify((item.addons || []).sort()) === JSON.stringify(normalizedAddons)
+    );
+
+    if (existingItemIndex >= 0) {
+      // Combine quantities instead of adding duplicate
+      cart[existingItemIndex].quantity += (quantity || 1);
+      const message = naturalSpeech.getAddedConfirmation(menuItem.name, quantity || 1);
+      return {
+        success: true,
+        itemIndex: existingItemIndex,
+        item: cart[existingItemIndex],
+        message,
+        combined: true
+      };
+    }
+
     const item = {
       category,
       item_id,
