@@ -9,6 +9,7 @@ import nlpParser from './services/nlpParser.js';
 import orderService from './services/orderService.js';
 import smsService from './services/smsService.js';
 import logger from './utils/logger.js';
+import * as naturalSpeech from './utils/naturalSpeech.js';
 import { isShopOpen, getNextOpenTime, estimateReadyTime, parsePickupTime } from './utils/businessHours.js';
 
 const app = express();
@@ -243,9 +244,15 @@ async function handleQuickAddItem(req, params) {
   const result = cartService.addItemToCart(session.cart, parsed.itemConfig);
   await saveSession(callId, session);
 
+  // Use varied, natural confirmations
+  const message = naturalSpeech.getAddedConfirmation(
+    result.item.item_name,
+    result.item.quantity
+  );
+
   return {
     success: true,
-    message: result.message || `Added ${result.item.item_name} to cart`,
+    message,
     item: result.item
   };
 }
@@ -257,10 +264,14 @@ async function handleAddMultipleItems(req, params) {
   const result = cartService.addMultipleItems(session.cart, params.items);
   await saveSession(callId, session);
 
+  const message = result.count === 1
+    ? naturalSpeech.getConfirmation()
+    : `${naturalSpeech.getConfirmation()}, added ${result.count} items`;
+
   return {
     success: true,
     count: result.count,
-    message: `Added ${result.count} items to cart`
+    message
   };
 }
 
@@ -336,16 +347,18 @@ async function handleSetPickupTime(req, params) {
     session.metadata.pickupTimeISO = parsed.iso;
     await saveSession(callId, session);
 
+    const formattedTime = naturalSpeech.formatPickupTime(parsed.fullTime);
+
     return {
       success: true,
       pickupTime: parsed.fullTime,
-      message: `Your order will be ready for pickup at ${parsed.time}`
+      message: `Got it, ${formattedTime}`
     };
   }
 
   return {
     success: false,
-    error: 'Could not parse the requested time. Please specify a time like "6pm" or "in 30 minutes"'
+    error: 'Please give me a specific time, like "6 PM" or "in 30 minutes"'
   };
 }
 
@@ -360,12 +373,17 @@ async function handleEstimateReadyTime(req) {
   session.metadata.estimatedReadyTimeISO = estimate.iso;
   await saveSession(callId, session);
 
+  const formattedTime = naturalSpeech.formatPickupTime(estimate.time);
+  const message = estimate.minutes <= 20
+    ? `Should be ready ${formattedTime}`
+    : `That'll be ready ${formattedTime}`;
+
   return {
     estimatedMinutes: estimate.minutes,
     readyTime: estimate.time,
     fullTime: estimate.fullTime,
     queueSize,
-    message: `Your order will be ready in approximately ${estimate.minutes} minutes, around ${estimate.time}`
+    message
   };
 }
 
@@ -430,13 +448,20 @@ async function handleCreateOrder(req, params) {
 
   logger.success(`Order created: ${order.orderNumber}`, { total: order.pricing.total });
 
+  // Create natural, conversational confirmation
+  const message = naturalSpeech.formatOrderConfirmation(
+    order.orderNumber,
+    order.pricing.total,
+    order.pickupTime
+  );
+
   return {
     success: true,
     orderId: order.id,
     orderNumber: order.orderNumber,
     total: order.pricing.total,
     pickupTime: order.pickupTime,
-    message: `Order ${order.orderNumber} confirmed! Total: $${order.pricing.total}. Pickup at ${order.pickupTime}`
+    message
   };
 }
 
@@ -449,7 +474,7 @@ async function handleRepeatLastOrder(req, params) {
   if (!lastOrder) {
     return {
       success: false,
-      error: 'No previous orders found for this phone number'
+      error: naturalSpeech.getNoOrdersMessage()
     };
   }
 
@@ -459,9 +484,13 @@ async function handleRepeatLastOrder(req, params) {
 
   const cartState = cartService.getCartState(session.cart);
 
+  const message = cartState.count === 1
+    ? "Added your usual order"
+    : `Added your usual - that's ${cartState.count} items`;
+
   return {
     success: true,
-    message: `Added your last order to the cart (${cartState.count} items)`,
+    message,
     items: cartState.formatted
   };
 }
@@ -470,9 +499,17 @@ async function handleEndCall(req) {
   const callId = getCallId(req);
   await sessionManager.deleteSession(callId);
 
+  const farewells = [
+    'Thanks for calling, see you soon!',
+    'Great, see you when you pick it up!',
+    'Perfect, thanks!',
+    'Awesome, see you soon!'
+  ];
+  const message = farewells[Math.floor(Math.random() * farewells.length)];
+
   return {
     success: true,
-    message: 'Thank you for calling Stuffed Lamb. Have a great day!'
+    message
   };
 }
 

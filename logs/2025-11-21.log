@@ -139,3 +139,8 @@
 {"timestamp":"2025-11-21T12:10:37.395Z","level":"info","message":"📋 Environment: development","data":null}
 {"timestamp":"2025-11-21T12:10:37.395Z","level":"info","message":"🏪 Shop: Stuffed Lamb","data":null}
 {"timestamp":"2025-11-21T12:10:37.396Z","level":"info","message":"📞 Webhook ready at: http://0.0.0.0:8000/webhook","data":null}
+{"timestamp":"2025-11-21T12:35:35.045Z","level":"info","message":"🚀 Starting Stuffed Lamb VAPI Server...","data":null}
+{"timestamp":"2025-11-21T12:35:35.059Z","level":"success","message":"✅ Server running on http://0.0.0.0:8000","data":null}
+{"timestamp":"2025-11-21T12:35:35.060Z","level":"info","message":"📋 Environment: development","data":null}
+{"timestamp":"2025-11-21T12:35:35.061Z","level":"info","message":"🏪 Shop: Stuffed Lamb","data":null}
+{"timestamp":"2025-11-21T12:35:35.061Z","level":"info","message":"📞 Webhook ready at: http://0.0.0.0:8000/webhook","data":null}

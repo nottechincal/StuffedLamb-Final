@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import * as naturalSpeech from '../utils/naturalSpeech.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -75,11 +76,15 @@ class CartService {
     };
 
     cart.push(item);
+
+    // Use natural confirmation instead of robotic "Added 1x Item"
+    const message = naturalSpeech.getAddedConfirmation(menuItem.name, item.quantity);
+
     return {
       success: true,
       itemIndex: cart.length - 1,
       item,
-      message: `Added ${item.quantity}x ${menuItem.name} to cart`
+      message
     };
   }
 
@@ -116,10 +121,12 @@ class CartService {
     }
 
     const removed = cart.splice(itemIndex, 1)[0];
+    const message = naturalSpeech.getRemovalConfirmation(removed.item_name);
+
     return {
       success: true,
       removed,
-      message: `Removed ${removed.item_name} from cart`
+      message
     };
   }
 
@@ -152,10 +159,12 @@ class CartService {
       }
     }
 
+    const message = naturalSpeech.getUpdateConfirmation(item.item_name);
+
     return {
       success: true,
       item,
-      message: `Updated ${item.item_name}`
+      message
     };
   }
 
@@ -165,10 +174,19 @@ class CartService {
   clearCart(cart) {
     const count = cart.length;
     cart.length = 0;
+
+    const messages = [
+      "Starting fresh",
+      "All clear",
+      "Cart's empty now",
+      "Cleared everything out"
+    ];
+    const message = messages[Math.floor(Math.random() * messages.length)];
+
     return {
       success: true,
       cleared: count,
-      message: `Cleared ${count} item(s) from cart`
+      message
     };
   }
 
@@ -289,15 +307,16 @@ class CartService {
       `${index + 1}. ${this.formatItem(item)} - $${this.calculateItemPrice(item).toFixed(2)}`
     );
 
+    // Format for natural speech - no emojis, clean text
     const summary = [
-      '📋 ORDER SUMMARY',
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      'ORDER SUMMARY',
+      '---',
       ...items,
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-      `Subtotal: $${pricing.subtotal}`,
-      `GST (included): $${pricing.gst}`,
-      `TOTAL: $${pricing.total}`,
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      '---',
+      `Subtotal: ${naturalSpeech.formatMoney(pricing.subtotal)}`,
+      `GST included: ${naturalSpeech.formatMoney(pricing.gst)}`,
+      `TOTAL: ${naturalSpeech.formatMoney(pricing.total)}`,
+      '---'
     ].join('\n');
 
     return {
