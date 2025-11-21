@@ -48,3 +48,4 @@ dump.rdb
 tmp/
 temp/
 *.tmp
+.env.backup
