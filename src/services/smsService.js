@@ -13,14 +13,17 @@ const businessData = JSON.parse(
 class SMSService {
   constructor() {
     this.client = null;
-    this.fromNumber = process.env.TWILIO_FROM;
-    this.shopNumber = process.env.SHOP_ORDER_TO;
+    this.fromNumber = null;
+    this.shopNumber = null;
     this.initialized = false;
   }
 
   initialize() {
     if (this.initialized) return;
 
+    // Read env vars during initialization, not during construction
+    this.fromNumber = process.env.TWILIO_FROM;
+    this.shopNumber = process.env.SHOP_ORDER_TO;
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
 

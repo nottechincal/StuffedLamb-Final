@@ -1,5 +1,8 @@
-import express from 'express';
 import dotenv from 'dotenv';
+// Load environment variables FIRST before any other imports
+dotenv.config();
+
+import express from 'express';
 import sessionManager from './services/sessionManager.js';
 import cartService from './services/cartService.js';
 import nlpParser from './services/nlpParser.js';
@@ -7,9 +10,6 @@ import orderService from './services/orderService.js';
 import smsService from './services/smsService.js';
 import logger from './utils/logger.js';
 import { isShopOpen, getNextOpenTime, estimateReadyTime, parsePickupTime } from './utils/businessHours.js';
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8000;
