@@ -24,8 +24,15 @@ class SMSService {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
 
+    // Debug: Show what we're checking
+    console.log('🔍 Twilio Config Check:');
+    console.log(`   ACCOUNT_SID: ${accountSid ? 'AC***' + accountSid.slice(-4) : '❌ MISSING'}`);
+    console.log(`   AUTH_TOKEN: ${authToken ? '***' + authToken.slice(-4) : '❌ MISSING'}`);
+    console.log(`   FROM_NUMBER: ${this.fromNumber || '❌ MISSING'}`);
+
     if (!accountSid || !authToken || !this.fromNumber) {
       console.warn('⚠️  Twilio credentials not configured. SMS features will be disabled.');
+      console.warn(`   Missing: ${!accountSid ? 'ACCOUNT_SID ' : ''}${!authToken ? 'AUTH_TOKEN ' : ''}${!this.fromNumber ? 'FROM_NUMBER' : ''}`);
       return;
     }
 
