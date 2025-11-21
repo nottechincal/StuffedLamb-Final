@@ -279,8 +279,8 @@ if ($ngrokUrl) {
 Write-Host ""
 
 Write-Host "🪟  Windows Opened:" -ForegroundColor Yellow
-Write-Host "  1. Stuffed Lamb Server (running on port 8000)"
-Write-Host "  2. ngrok (tunneling to localhost:8000)"
+Write-Host "  1. Stuffed Lamb Server - Port 8000"
+Write-Host "  2. ngrok - Tunneling to localhost:8000"
 Write-Host ""
 
 Write-Host "========================================" -ForegroundColor Cyan

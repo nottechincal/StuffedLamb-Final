@@ -60,7 +60,12 @@ async function saveSession(callId, session) {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    shop: process.env.SHOP_NAME || 'Stuffed Lamb',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Main webhook endpoint
