@@ -26,15 +26,38 @@ if (-not $SkipChecks) {
     # Check if port 8000 is in use
     $portCheck = netstat -ano | Select-String ":8000"
     if ($portCheck) {
-        Write-Host "❌ ERROR: Port 8000 is already in use!" -ForegroundColor Red
+        Write-Host "⚠️  Port 8000 is already in use!" -ForegroundColor Yellow
         Write-Host ""
-        Write-Host "Stop the existing server first:" -ForegroundColor Yellow
-        Write-Host "  Option 1: Close running terminal windows"
-        Write-Host "  Option 2: Run in PowerShell: Stop-Process -Name node -Force"
-        Write-Host "  Option 3: Run in CMD: taskkill /F /IM node.exe"
+        Write-Host "There's an existing Node.js server running." -ForegroundColor Gray
         Write-Host ""
-        Read-Host "Press Enter to exit"
-        exit 1
+
+        # Ask user if they want to stop it
+        $response = Read-Host "Would you like to stop the existing server and continue? (Y/N)"
+
+        if ($response -match '^[Yy]') {
+            Write-Host ""
+            Write-Host "Stopping existing Node.js processes..." -ForegroundColor Yellow
+            try {
+                Stop-Process -Name node -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 2
+                Write-Host "  ✅ Stopped existing server" -ForegroundColor Green
+                Write-Host ""
+            } catch {
+                Write-Host "  ❌ Failed to stop server" -ForegroundColor Red
+                Write-Host ""
+                Write-Host "Manually stop it with: taskkill /F /IM node.exe" -ForegroundColor Yellow
+                Read-Host "Press Enter to exit"
+                exit 1
+            }
+        } else {
+            Write-Host ""
+            Write-Host "To manually stop the server:" -ForegroundColor Yellow
+            Write-Host "  • Close running terminal windows, OR"
+            Write-Host "  • Run: Stop-Process -Name node -Force"
+            Write-Host ""
+            Read-Host "Press Enter to exit"
+            exit 1
+        }
     }
     Write-Host "  ✅ Port 8000 available" -ForegroundColor Green
 
