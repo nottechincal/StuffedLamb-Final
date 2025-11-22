@@ -79,18 +79,31 @@ app.post('/webhook', async (req, res) => {
     // Solution: Detect fresh conversations and reset contaminated sessions
 
     const callId = getCallId(req);
+    logger.info(`[WEBHOOK] Received message type: ${message?.type}, callId: ${callId}`);
 
     if (message && message.type === 'tool-calls') {
       const conversationLength = message.artifact?.messages?.length || 0;
-      const existingSession = callId !== 'unknown' ? await sessionManager.getSession(callId) : null;
-      const cartSize = existingSession?.cart?.length || 0;
+      logger.info(`[CONV LENGTH] ${conversationLength} messages in conversation`);
 
-      logger.info(`[SESSION CHECK] callId=${callId}, conversation=${conversationLength} msgs, cart=${cartSize} items`);
+      // DON'T fetch session yet - just check if it exists
+      let cartSize = 0;
+      let sessionExists = false;
+      if (callId !== 'unknown') {
+        // Peek at session without creating it
+        const sessionData = sessionManager.inMemorySessions.get(callId);
+        if (sessionData) {
+          sessionExists = true;
+          cartSize = sessionData.data?.cart?.length || 0;
+          logger.info(`[SESSION EXISTS] callId=${callId}, cart=${cartSize} items`);
+        } else {
+          logger.info(`[SESSION NEW] No existing session for callId=${callId}`);
+        }
 
-      // If conversation is fresh (<10 messages) but cart has items = contamination!
-      if (callId !== 'unknown' && conversationLength < 10 && cartSize > 0) {
-        logger.info(`[SESSION RESET] Fresh conversation (${conversationLength} msgs) with contaminated cart (${cartSize} items) - resetting`);
-        await sessionManager.deleteSession(callId);
+        // RESET LOGIC: Fresh conversation (<10 msgs) with existing cart = contamination!
+        if (sessionExists && conversationLength < 10 && cartSize > 0) {
+          logger.info(`[SESSION RESET] *** CONTAMINATION DETECTED *** Fresh convo (${conversationLength} msgs) + existing cart (${cartSize} items) - RESETTING NOW`);
+          await sessionManager.deleteSession(callId);
+        }
       }
     }
 
