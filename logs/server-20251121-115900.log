@@ -1,0 +1,13 @@
+[36mℹ️  [11:59:04] 🚀 Starting Stuffed Lamb VAPI Server...[0m 
+ℹ️  Using in-memory session storage
+🔍 Twilio Config Check:
+   ACCOUNT_SID: AC***249c
+   AUTH_TOKEN: ***70f1
+   FROM_NUMBER: ❌ MISSING
+⚠️  Twilio credentials not configured. SMS features will be disabled.
+   Missing: FROM_NUMBER
+[32m✅ [11:59:04] ✅ Server running on http://0.0.0.0:8000[0m 
+[36mℹ️  [11:59:04] 📋 Environment: development[0m 
+[36mℹ️  [11:59:04] 🏪 Shop: Stuffed Lamb[0m 
+[36mℹ️  [11:59:04] 📞 Webhook ready at: http://0.0.0.0:8000/webhook[0m 
+[36mℹ️  [12:01:31] Shutting down gracefully...[0m 
