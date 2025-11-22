@@ -95,12 +95,38 @@ export function parsePickupTime(requestedTime) {
   try {
     const now = new Date();
     const zonedNow = utcToZonedTime(now, TIMEZONE);
+    const dayOfWeek = format(zonedNow, 'EEEE').toLowerCase();
+    const hours = businessData.hours[dayOfWeek];
 
     // Handle relative times like "in 30 minutes" or "30 minutes" or "23 minutes"
     const minutesMatch = requestedTime.match(/(?:in\s+)?(\d+)\s*minutes?/i);
     if (minutesMatch) {
       const minutes = parseInt(minutesMatch[1]);
       const pickupTime = addMinutes(zonedNow, minutes);
+
+      // Validate against closing time
+      if (!validatePickupTime(pickupTime, hours)) {
+        return null;
+      }
+
+      return {
+        time: formatInTimeZone(pickupTime, TIMEZONE, 'h:mm a'),
+        fullTime: formatInTimeZone(pickupTime, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+        iso: pickupTime.toISOString()
+      };
+    }
+
+    // Handle relative hours like "in 3 hours"
+    const hoursMatch = requestedTime.match(/(?:in\s+)?(\d+)\s*hours?/i);
+    if (hoursMatch) {
+      const hours = parseInt(hoursMatch[1]);
+      const pickupTime = addMinutes(zonedNow, hours * 60);
+
+      // Validate against closing time
+      if (!validatePickupTime(pickupTime, businessData.hours[dayOfWeek])) {
+        return null;
+      }
+
       return {
         time: formatInTimeZone(pickupTime, TIMEZONE, 'h:mm a'),
         fullTime: formatInTimeZone(pickupTime, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
@@ -126,6 +152,11 @@ export function parsePickupTime(requestedTime) {
       const dateString = format(zonedNow, 'yyyy-MM-dd');
       const pickupTime = parse(`${dateString} ${timeString}`, 'yyyy-MM-dd HH:mm', zonedNow);
 
+      // Validate against closing time
+      if (!validatePickupTime(pickupTime, hours)) {
+        return null;
+      }
+
       return {
         time: formatInTimeZone(pickupTime, TIMEZONE, 'h:mm a'),
         fullTime: formatInTimeZone(pickupTime, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
@@ -139,6 +170,19 @@ export function parsePickupTime(requestedTime) {
     console.error('Error parsing pickup time:', error);
     return null;
   }
+}
+
+function validatePickupTime(pickupTime, dayHours) {
+  // If no hours defined or shop is closed, invalid
+  if (!dayHours || dayHours.closed || !dayHours.close) {
+    return false;
+  }
+
+  const pickupTimeStr = format(pickupTime, 'HH:mm');
+  const closeTimeStr = dayHours.close;
+
+  // Check if pickup time is before closing time
+  return pickupTimeStr < closeTimeStr;
 }
 
 export function getCurrentTime() {
