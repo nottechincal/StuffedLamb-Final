@@ -75,14 +75,22 @@ app.post('/webhook', async (req, res) => {
     const { message } = req.body;
 
     // Detect call start and clear any stale session
-    if (message && message.type === 'assistant-request') {
+    // Also detect when a NEW assistant starts (new call) and reset session immediately
+    if (message && (message.type === 'assistant-request' || message.type === 'assistant.started')) {
       const callId = getCallId(req);
       if (callId && callId !== 'unknown') {
-        // Check if session exists and has been idle for more than 2 minutes
         const existingSession = await sessionManager.getSession(callId);
-        if (existingSession && existingSession.metadata.startTime) {
+
+        // If this is a new assistant starting, always reset the session
+        if (message.type === 'assistant.started') {
+          if (existingSession && existingSession.cart && existingSession.cart.length > 0) {
+            logger.info(`New assistant started - resetting session for call ${callId}`);
+          }
+          await sessionManager.deleteSession(callId);
+        }
+        // Otherwise check if session is stale (older than 2 minutes)
+        else if (existingSession && existingSession.metadata.startTime) {
           const sessionAge = Date.now() - new Date(existingSession.metadata.startTime).getTime();
-          // If session is older than 2 minutes, it's likely from a previous call - reset it
           if (sessionAge > 120000) {
             logger.info(`Resetting stale session for call ${callId} (age: ${Math.round(sessionAge / 1000)}s)`);
             await sessionManager.deleteSession(callId);
@@ -227,7 +235,16 @@ async function handleCheckOpen() {
 
 async function handleGetCallerSmartContext(req) {
   const callId = getCallId(req);
-  const callerNumber = req.body.message?.call?.customer?.number || 'unknown';
+
+  // Try multiple locations for phone number in Vapi payload
+  const callerNumber = req.body.message?.call?.customer?.number
+    || req.body.message?.call?.phoneNumber
+    || req.body.call?.customer?.number
+    || req.body.call?.phoneNumber
+    || req.body.message?.call?.customerPhoneNumber
+    || 'unknown';
+
+  logger.info('getCallerSmartContext: extracted phone', { callerNumber, hasCall: !!req.body.message?.call });
 
   const customerData = orderService.getCustomerData(callerNumber);
 
@@ -374,13 +391,23 @@ async function handleSetPickupTime(req, params) {
     return {
       success: true,
       pickupTime: parsed.fullTime,
-      message: `Got it, ${formattedTime}`
+      message: `Your order will be ready for pickup at ${parsed.time}`
     };
   }
 
+  // Check if it's a closing time issue
+  const isOpen = isShopOpen();
+  if (!isOpen) {
+    return {
+      success: false,
+      error: `We're currently closed. We'll be open ${getNextOpenTime()}`
+    };
+  }
+
+  // Suggest an earlier time if the requested time is after closing
   return {
     success: false,
-    error: 'Please give me a specific time, like "6 PM" or "in 30 minutes"'
+    error: 'That time is too late. Could you pick up earlier? We close at 9 PM'
   };
 }
 
@@ -442,22 +469,31 @@ async function handleCreateOrder(req, params) {
   if (!session.metadata.pickupTime && !session.metadata.estimatedReadyTime) {
     return {
       success: false,
-      error: 'When would you like to pick that up?',
+      error: 'Please set a pickup time first using estimateReadyTime or setPickupTime',
       requiresPickupTime: true
     };
   }
 
   const pricing = cartService.priceCart(session.cart);
 
+  // Prefer explicitly-set pickup time, fall back to estimated time
+  const finalPickupTime = session.metadata.pickupTime || session.metadata.estimatedReadyTime;
+
   const orderData = {
     customerName: params.customerName,
     customerPhone: params.customerPhone,
     items: [...session.cart],
     pricing,
-    pickupTime: session.metadata.pickupTime || session.metadata.estimatedReadyTime,
+    pickupTime: finalPickupTime,
     estimatedReadyTime: session.metadata.estimatedReadyTime,
     notes: params.notes || ''
   };
+
+  logger.info('Creating order with pickup time:', {
+    finalPickupTime,
+    explicitPickupTime: session.metadata.pickupTime,
+    estimatedTime: session.metadata.estimatedReadyTime
+  });
 
   const order = orderService.createOrder(orderData);
 

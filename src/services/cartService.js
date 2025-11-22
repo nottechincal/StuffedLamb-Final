@@ -64,7 +64,7 @@ class CartService {
       }
     }
 
-    // Check if identical item already exists in cart
+    // Check if identical item already exists in cart (exact match on item_id, drink_option, and addons)
     const normalizedAddons = (addons || []).sort();
     const existingItemIndex = cart.findIndex(item =>
       item.item_id === item_id &&
@@ -74,7 +74,11 @@ class CartService {
 
     if (existingItemIndex >= 0) {
       // Combine quantities instead of adding duplicate
+      const oldQuantity = cart[existingItemIndex].quantity;
       cart[existingItemIndex].quantity += (quantity || 1);
+
+      console.log(`[CART] Combined ${quantity || 1}x ${menuItem.name} with existing item (total: ${cart[existingItemIndex].quantity})`);
+
       const message = naturalSpeech.getAddedConfirmation(menuItem.name, quantity || 1);
       return {
         success: true,
@@ -84,6 +88,11 @@ class CartService {
         combined: true
       };
     }
+
+    console.log(`[CART] Adding new item: ${quantity || 1}x ${menuItem.name}`, {
+      addons: normalizedAddons,
+      drink_option
+    });
 
     const item = {
       category,
