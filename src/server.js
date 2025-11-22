@@ -76,44 +76,39 @@ app.post('/webhook', async (req, res) => {
 
     // AGGRESSIVE SESSION RESET STRATEGY
     // Problem: Vapi test suites reuse the same call ID across multiple tests
-    // Solution: Detect new conversations and reset immediately
+    // Root Cause: Vapi only sends type: "tool-calls" messages, not assistant.started/speech-update
+    // Solution: Multi-strategy detection of new conversations
 
     const callId = getCallId(req);
 
-    // Strategy 1: Detect assistant.started event (new call beginning)
-    if (message && message.type === 'assistant.started') {
-      if (callId && callId !== 'unknown') {
-        logger.info(`[SESSION RESET] assistant.started detected for call ${callId}`);
+    if (message && message.type === 'tool-calls' && callId && callId !== 'unknown') {
+      const existingSession = await sessionManager.getSession(callId);
+      let shouldReset = false;
+      let resetReason = '';
+
+      // Strategy 1: Idle period detection (5+ seconds)
+      if (existingSession && existingSession.metadata.lastToolCallTime) {
+        const timeSinceLastCall = Date.now() - new Date(existingSession.metadata.lastToolCallTime).getTime();
+
+        if (timeSinceLastCall > 5000) {
+          shouldReset = true;
+          resetReason = `Idle period: ${Math.round(timeSinceLastCall / 1000)}s`;
+        }
+      }
+
+      // Strategy 2: First-call pattern detection
+      // If sendMenuLink is called and cart has items, it's likely a new conversation
+      if (!shouldReset && existingSession && existingSession.cart && existingSession.cart.length > 0) {
+        const firstToolCall = message.toolCalls && message.toolCalls[0];
+        if (firstToolCall && firstToolCall.function.name === 'sendMenuLink') {
+          shouldReset = true;
+          resetReason = 'sendMenuLink called with existing cart';
+        }
+      }
+
+      if (shouldReset) {
+        logger.info(`[SESSION RESET] ${resetReason} - resetting session for call ${callId}`);
         await sessionManager.deleteSession(callId);
-      }
-    }
-
-    // Strategy 2: Detect first user speech after idle period
-    // If we see a speech-update after 30+ seconds of silence, likely a new test
-    if (message && message.type === 'speech-update' && message.role === 'user') {
-      if (callId && callId !== 'unknown') {
-        const existingSession = await sessionManager.getSession(callId);
-        if (existingSession && existingSession.metadata.lastToolCallTime) {
-          const timeSinceLastCall = Date.now() - new Date(existingSession.metadata.lastToolCallTime).getTime();
-          if (timeSinceLastCall > 30000) { // 30 seconds
-            logger.info(`[SESSION RESET] New conversation detected after ${Math.round(timeSinceLastCall / 1000)}s idle for call ${callId}`);
-            await sessionManager.deleteSession(callId);
-          }
-        }
-      }
-    }
-
-    // Strategy 3: Detect stale sessions (fallback)
-    if (message && message.type === 'assistant-request') {
-      if (callId && callId !== 'unknown') {
-        const existingSession = await sessionManager.getSession(callId);
-        if (existingSession && existingSession.metadata.startTime) {
-          const sessionAge = Date.now() - new Date(existingSession.metadata.startTime).getTime();
-          if (sessionAge > 120000) { // 2 minutes
-            logger.info(`[SESSION RESET] Stale session for call ${callId} (age: ${Math.round(sessionAge / 1000)}s)`);
-            await sessionManager.deleteSession(callId);
-          }
-        }
       }
     }
 
