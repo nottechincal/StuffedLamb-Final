@@ -86,23 +86,40 @@ app.post('/webhook', async (req, res) => {
       let shouldReset = false;
       let resetReason = '';
 
-      // Strategy 1: Idle period detection (5+ seconds)
+      // Strategy 1: Idle period detection (3+ seconds)
+      // Tests run quickly but there's usually a small gap between them
       if (existingSession && existingSession.metadata.lastToolCallTime) {
         const timeSinceLastCall = Date.now() - new Date(existingSession.metadata.lastToolCallTime).getTime();
 
-        if (timeSinceLastCall > 5000) {
+        if (timeSinceLastCall > 3000) {
           shouldReset = true;
           resetReason = `Idle period: ${Math.round(timeSinceLastCall / 1000)}s`;
         }
       }
 
-      // Strategy 2: First-call pattern detection
-      // If sendMenuLink is called and cart has items, it's likely a new conversation
-      if (!shouldReset && existingSession && existingSession.cart && existingSession.cart.length > 0) {
+      // Strategy 2: Suspicious cart state detection
+      // If cart has 3+ items and we see "restart" actions, reset
+      if (!shouldReset && existingSession && existingSession.cart && existingSession.cart.length >= 3) {
         const firstToolCall = message.toolCalls && message.toolCalls[0];
-        if (firstToolCall && firstToolCall.function.name === 'sendMenuLink') {
+        const toolName = firstToolCall?.function?.name;
+
+        // These actions with a large cart suggest a new conversation
+        if (toolName === 'sendMenuLink' || toolName === 'getCartState') {
           shouldReset = true;
-          resetReason = 'sendMenuLink called with existing cart';
+          resetReason = `${toolName} called with ${existingSession.cart.length} items in cart`;
+        }
+      }
+
+      // Strategy 3: Detect if first action after long inactivity is a fresh start
+      // If cart is empty but was created >30s ago, and we see quickAddItem, likely new test
+      if (!shouldReset && existingSession && existingSession.metadata.startTime) {
+        const sessionAge = Date.now() - new Date(existingSession.metadata.startTime).getTime();
+        const cartEmpty = !existingSession.cart || existingSession.cart.length === 0;
+        const firstToolCall = message.toolCalls && message.toolCalls[0];
+
+        if (sessionAge > 30000 && cartEmpty && firstToolCall?.function?.name === 'quickAddItem') {
+          shouldReset = true;
+          resetReason = `Old empty session (${Math.round(sessionAge / 1000)}s) with fresh order`;
         }
       }
 
