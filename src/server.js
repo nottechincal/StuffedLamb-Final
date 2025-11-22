@@ -46,7 +46,11 @@ app.use((req, res, next) => {
 // ==================== HELPER FUNCTIONS ====================
 
 function getCallId(req) {
-  return req.body.message?.call?.id || req.body.call?.id || 'unknown';
+  // Vapi sends the chat/call ID in message.chat.id
+  return req.body.message?.chat?.id
+    || req.body.message?.call?.id
+    || req.body.call?.id
+    || 'unknown';
 }
 
 async function getOrCreateSession(callId) {
