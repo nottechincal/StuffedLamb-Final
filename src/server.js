@@ -74,55 +74,22 @@ app.post('/webhook', async (req, res) => {
   try {
     const { message } = req.body;
 
-    // AGGRESSIVE SESSION RESET STRATEGY
-    // Problem: Vapi test suites reuse the same call ID across multiple tests
-    // Root Cause: Vapi only sends type: "tool-calls" messages, not assistant.started/speech-update
-    // Solution: Multi-strategy detection of new conversations
+    // BULLETPROOF SESSION ISOLATION
+    // Problem: Vapi reuses call IDs across test suite runs
+    // Solution: Detect fresh conversations and reset contaminated sessions
 
     const callId = getCallId(req);
 
-    if (message && message.type === 'tool-calls' && callId && callId !== 'unknown') {
-      const existingSession = await sessionManager.getSession(callId);
-      let shouldReset = false;
-      let resetReason = '';
-
-      // STRATEGY 1 (MOST RELIABLE): Detect conversation restart via message history
-      // Vapi sends conversation history in message.artifact.messages
-      // A fresh conversation has only 4-6 messages (system + greeting + first user message + tool call)
+    if (message && message.type === 'tool-calls') {
       const conversationLength = message.artifact?.messages?.length || 0;
+      const existingSession = callId !== 'unknown' ? await sessionManager.getSession(callId) : null;
+      const cartSize = existingSession?.cart?.length || 0;
 
-      if (existingSession && existingSession.cart && existingSession.cart.length > 0) {
-        // If we have a cart with items, but conversation history is very short, it's a NEW test reusing the call ID
-        if (conversationLength <= 6) {
-          shouldReset = true;
-          resetReason = `Fresh conversation (${conversationLength} messages) but cart has ${existingSession.cart.length} items`;
-        }
-      }
+      logger.info(`[SESSION CHECK] callId=${callId}, conversation=${conversationLength} msgs, cart=${cartSize} items`);
 
-      // STRATEGY 2: Idle period detection (3+ seconds)
-      if (!shouldReset && existingSession && existingSession.metadata.lastToolCallTime) {
-        const timeSinceLastCall = Date.now() - new Date(existingSession.metadata.lastToolCallTime).getTime();
-
-        if (timeSinceLastCall > 3000) {
-          shouldReset = true;
-          resetReason = `Idle period: ${Math.round(timeSinceLastCall / 1000)}s`;
-        }
-      }
-
-      // STRATEGY 3: Suspicious cart state detection
-      // If cart has 3+ items and we see "restart" actions, reset
-      if (!shouldReset && existingSession && existingSession.cart && existingSession.cart.length >= 3) {
-        const firstToolCall = message.toolCalls && message.toolCalls[0];
-        const toolName = firstToolCall?.function?.name;
-
-        if (toolName === 'sendMenuLink' || toolName === 'getCartState') {
-          shouldReset = true;
-          resetReason = `${toolName} called with ${existingSession.cart.length} items in cart`;
-        }
-      }
-
-      if (shouldReset) {
-        logger.info(`[SESSION RESET] ${resetReason} - resetting session for call ${callId}`);
+      // If conversation is fresh (<10 messages) but cart has items = contamination!
+      if (callId !== 'unknown' && conversationLength < 10 && cartSize > 0) {
+        logger.info(`[SESSION RESET] Fresh conversation (${conversationLength} msgs) with contaminated cart (${cartSize} items) - resetting`);
         await sessionManager.deleteSession(callId);
       }
     }
