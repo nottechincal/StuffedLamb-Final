@@ -85,24 +85,21 @@ app.post('/webhook', async (req, res) => {
       const conversationLength = message.artifact?.messages?.length || 0;
       logger.info(`[CONV LENGTH] ${conversationLength} messages in conversation`);
 
-      // DON'T fetch session yet - just check if it exists
-      let cartSize = 0;
-      let sessionExists = false;
+      // Peek at session without creating a new one
       if (callId !== 'unknown') {
-        // Peek at session without creating it
-        const sessionData = sessionManager.inMemorySessions.get(callId);
-        if (sessionData) {
-          sessionExists = true;
-          cartSize = sessionData.data?.cart?.length || 0;
+        const existingSession = await sessionManager.peekSession(callId);
+        const cartSize = existingSession?.cart?.length || 0;
+
+        if (existingSession) {
           logger.info(`[SESSION EXISTS] callId=${callId}, cart=${cartSize} items`);
+
+          // RESET LOGIC: Fresh conversation (<10 msgs) with existing cart = contamination!
+          if (conversationLength < 10 && cartSize > 0) {
+            logger.info(`[SESSION RESET] *** CONTAMINATION DETECTED *** Fresh convo (${conversationLength} msgs) + existing cart (${cartSize} items) - RESETTING NOW`);
+            await sessionManager.deleteSession(callId);
+          }
         } else {
           logger.info(`[SESSION NEW] No existing session for callId=${callId}`);
-        }
-
-        // RESET LOGIC: Fresh conversation (<10 msgs) with existing cart = contamination!
-        if (sessionExists && conversationLength < 10 && cartSize > 0) {
-          logger.info(`[SESSION RESET] *** CONTAMINATION DETECTED *** Fresh convo (${conversationLength} msgs) + existing cart (${cartSize} items) - RESETTING NOW`);
-          await sessionManager.deleteSession(callId);
         }
       }
     }

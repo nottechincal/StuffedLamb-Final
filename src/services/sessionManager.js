@@ -70,6 +70,24 @@ class SessionManager {
     return this.createSession(callId);
   }
 
+  async peekSession(callId) {
+    // Get session without creating a new one
+    if (!callId) {
+      return null;
+    }
+
+    if (this.useRedis) {
+      const data = await this.redisClient.get(`session:${callId}`);
+      return data ? JSON.parse(data) : null;
+    } else {
+      const session = this.inMemorySessions.get(callId);
+      if (session && Date.now() - session.lastAccessed < this.sessionTTL * 1000) {
+        return session.data;
+      }
+      return null;
+    }
+  }
+
   createSession(callId) {
     const sessionData = {
       callId,
