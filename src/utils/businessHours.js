@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { format, parse, addMinutes, isBefore, isAfter } from 'date-fns';
+import { format, parse, addMinutes, addDays, isBefore, isAfter } from 'date-fns';
 import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +12,25 @@ const businessData = JSON.parse(
 );
 
 const TIMEZONE = process.env.SHOP_TIMEZONE || businessData.timezone || 'Australia/Melbourne';
+const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+function getNextOpenDateTime(zonedBase = utcToZonedTime(new Date(), TIMEZONE)) {
+  const currentDayIndex = dayNames.indexOf(format(zonedBase, 'EEEE').toLowerCase());
+
+  for (let i = 0; i < 7; i++) {
+    const dayIndex = (currentDayIndex + i) % 7;
+    const dayName = dayNames[dayIndex];
+    const hours = businessData.hours[dayName];
+
+    if (hours && !hours.closed && hours.open) {
+      const targetDate = addDays(zonedBase, i);
+      const dateStr = formatInTimeZone(targetDate, TIMEZONE, 'yyyy-MM-dd');
+      return zonedTimeToUtc(`${dateStr}T${hours.open}:00`, TIMEZONE);
+    }
+  }
+
+  return null;
+}
 
 export function isShopOpen() {
   try {
@@ -130,7 +149,6 @@ export function parsePickupTime(requestedTime) {
     }
 
     // HANDLE FUTURE DAY REQUESTS (e.g., "Wednesday at 1pm", "tomorrow at 6pm")
-    const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     const dayPattern = new RegExp(`(${dayNames.join('|')}|tomorrow|today)(?:\\s+at)?\\s+(.+)`, 'i');
     const dayMatch = timeInput.match(dayPattern);
 
@@ -172,6 +190,8 @@ export function parsePickupTime(requestedTime) {
         if (meridiem === 'pm' && hour < 12) hour += 12;
         else if (meridiem === 'am' && hour === 12) hour = 0;
 
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+
         // Create future date
         const futureDate = new Date(zonedNow);
         futureDate.setDate(futureDate.getDate() + daysAhead);
@@ -180,7 +200,28 @@ export function parsePickupTime(requestedTime) {
         // Validate against that day's hours
         const targetHours = businessData.hours[targetDayName];
         if (!validatePickupTime(futureDate, targetHours)) {
-          return null;
+          const fallbackOpen = getNextOpenDateTime(futureDate);
+          if (!fallbackOpen) return null;
+
+          const fallbackDateStr = formatInTimeZone(fallbackOpen, TIMEZONE, 'yyyy-MM-dd');
+          const fallbackDate = zonedTimeToUtc(
+            `${fallbackDateStr}T${timeString}`,
+            TIMEZONE
+          );
+
+          const fallbackHours = businessData.hours[
+            format(utcToZonedTime(fallbackDate, TIMEZONE), 'EEEE').toLowerCase()
+          ];
+
+          if (!validatePickupTime(fallbackDate, fallbackHours)) {
+            return null;
+          }
+
+          return {
+            time: formatInTimeZone(fallbackDate, TIMEZONE, 'h:mm a'),
+            fullTime: formatInTimeZone(fallbackDate, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+            iso: fallbackDate.toISOString()
+          };
         }
 
         return {
@@ -199,7 +240,23 @@ export function parsePickupTime(requestedTime) {
 
       // Validate against closing time
       if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
-        return null;
+        const fallbackOpen = getNextOpenDateTime(zonedNow);
+        if (!fallbackOpen) return null;
+
+        const fallbackTime = addMinutes(fallbackOpen, minutes);
+        const fallbackHours = businessData.hours[
+          format(utcToZonedTime(fallbackTime, TIMEZONE), 'EEEE').toLowerCase()
+        ];
+
+        if (!validatePickupTime(fallbackTime, fallbackHours)) {
+          return null;
+        }
+
+        return {
+          time: formatInTimeZone(fallbackTime, TIMEZONE, 'h:mm a'),
+          fullTime: formatInTimeZone(fallbackTime, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+          iso: fallbackTime.toISOString()
+        };
       }
 
       return {
@@ -217,6 +274,22 @@ export function parsePickupTime(requestedTime) {
 
       // Validate against closing time
       if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
+        const fallbackOpen = getNextOpenDateTime(zonedNow);
+        if (fallbackOpen) {
+          const fallbackTime = addMinutes(fallbackOpen, hours * 60);
+          const fallbackHours = businessData.hours[
+            format(utcToZonedTime(fallbackTime, TIMEZONE), 'EEEE').toLowerCase()
+          ];
+
+          if (validatePickupTime(fallbackTime, fallbackHours)) {
+            return {
+              time: formatInTimeZone(fallbackTime, TIMEZONE, 'h:mm a'),
+              fullTime: formatInTimeZone(fallbackTime, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+              iso: fallbackTime.toISOString()
+            };
+          }
+        }
+
         return null;
       }
 
@@ -247,6 +320,27 @@ export function parsePickupTime(requestedTime) {
 
       // Validate against closing time
       if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
+        const fallbackOpen = getNextOpenDateTime(zonedNow);
+        if (fallbackOpen) {
+          const fallbackDateStr = formatInTimeZone(fallbackOpen, TIMEZONE, 'yyyy-MM-dd');
+          const fallbackDate = zonedTimeToUtc(
+            `${fallbackDateStr}T${timeString}`,
+            TIMEZONE
+          );
+
+          const fallbackHours = businessData.hours[
+            format(utcToZonedTime(fallbackDate, TIMEZONE), 'EEEE').toLowerCase()
+          ];
+
+          if (validatePickupTime(fallbackDate, fallbackHours)) {
+            return {
+              time: formatInTimeZone(fallbackDate, TIMEZONE, 'h:mm a'),
+              fullTime: formatInTimeZone(fallbackDate, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+              iso: fallbackDate.toISOString()
+            };
+          }
+        }
+
         return null;
       }
 
