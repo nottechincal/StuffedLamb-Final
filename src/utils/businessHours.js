@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { format, parse, addMinutes, isBefore, isAfter } from 'date-fns';
+import { format, parse, addMinutes, addDays, isBefore, isAfter } from 'date-fns';
 import { zonedTimeToUtc, utcToZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +12,25 @@ const businessData = JSON.parse(
 );
 
 const TIMEZONE = process.env.SHOP_TIMEZONE || businessData.timezone || 'Australia/Melbourne';
+const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+function getNextOpenDateTime(zonedBase = utcToZonedTime(new Date(), TIMEZONE)) {
+  const currentDayIndex = dayNames.indexOf(format(zonedBase, 'EEEE').toLowerCase());
+
+  for (let i = 0; i < 7; i++) {
+    const dayIndex = (currentDayIndex + i) % 7;
+    const dayName = dayNames[dayIndex];
+    const hours = businessData.hours[dayName];
+
+    if (hours && !hours.closed && hours.open) {
+      const targetDate = addDays(zonedBase, i);
+      const dateStr = formatInTimeZone(targetDate, TIMEZONE, 'yyyy-MM-dd');
+      return zonedTimeToUtc(`${dateStr}T${hours.open}:00`, TIMEZONE);
+    }
+  }
+
+  return null;
+}
 
 export function isShopOpen() {
   try {
@@ -96,11 +115,23 @@ export function parsePickupTime(requestedTime) {
     const now = new Date();
     const zonedNow = utcToZonedTime(now, TIMEZONE);
     const currentDayOfWeek = format(zonedNow, 'EEEE').toLowerCase();
+    const normalizedInput = (requestedTime || '').toString().trim();
+
+    // Clean up filler words/punctuation so phrases like "in about 40 minutes" still parse
+    const timeInput = normalizedInput
+      .replace(/[,]/g, ' ')
+      .replace(/\b(about|around|approximately|approx|roughly)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!timeInput) {
+      return null;
+    }
 
     // HANDLE ISO TIMESTAMP FORMAT (when AI sends timestamps directly like "2025-11-29T03:40:00.000Z")
-    const isoMatch = requestedTime.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    const isoMatch = timeInput.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     if (isoMatch) {
-      const requestedDate = new Date(requestedTime);
+      const requestedDate = new Date(timeInput);
       const zonedDate = utcToZonedTime(requestedDate, TIMEZONE);
       const dayName = format(zonedDate, 'EEEE').toLowerCase();
       const targetHours = businessData.hours[dayName];
@@ -118,9 +149,8 @@ export function parsePickupTime(requestedTime) {
     }
 
     // HANDLE FUTURE DAY REQUESTS (e.g., "Wednesday at 1pm", "tomorrow at 6pm")
-    const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     const dayPattern = new RegExp(`(${dayNames.join('|')}|tomorrow|today)(?:\\s+at)?\\s+(.+)`, 'i');
-    const dayMatch = requestedTime.match(dayPattern);
+    const dayMatch = timeInput.match(dayPattern);
 
     if (dayMatch) {
       let targetDayName = dayMatch[1].toLowerCase();
@@ -160,6 +190,8 @@ export function parsePickupTime(requestedTime) {
         if (meridiem === 'pm' && hour < 12) hour += 12;
         else if (meridiem === 'am' && hour === 12) hour = 0;
 
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+
         // Create future date
         const futureDate = new Date(zonedNow);
         futureDate.setDate(futureDate.getDate() + daysAhead);
@@ -168,7 +200,28 @@ export function parsePickupTime(requestedTime) {
         // Validate against that day's hours
         const targetHours = businessData.hours[targetDayName];
         if (!validatePickupTime(futureDate, targetHours)) {
-          return null;
+          const fallbackOpen = getNextOpenDateTime(futureDate);
+          if (!fallbackOpen) return null;
+
+          const fallbackDateStr = formatInTimeZone(fallbackOpen, TIMEZONE, 'yyyy-MM-dd');
+          const fallbackDate = zonedTimeToUtc(
+            `${fallbackDateStr}T${timeString}`,
+            TIMEZONE
+          );
+
+          const fallbackHours = businessData.hours[
+            format(utcToZonedTime(fallbackDate, TIMEZONE), 'EEEE').toLowerCase()
+          ];
+
+          if (!validatePickupTime(fallbackDate, fallbackHours)) {
+            return null;
+          }
+
+          return {
+            time: formatInTimeZone(fallbackDate, TIMEZONE, 'h:mm a'),
+            fullTime: formatInTimeZone(fallbackDate, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+            iso: fallbackDate.toISOString()
+          };
         }
 
         return {
@@ -180,14 +233,30 @@ export function parsePickupTime(requestedTime) {
     }
 
     // Handle relative times like "in 30 minutes" or "30 minutes" or "23 minutes"
-    const minutesMatch = requestedTime.match(/(?:in\s+)?(\d+)\s*minutes?/i);
+    const minutesMatch = timeInput.match(/(?:in\s+)?(\d+)\s*minutes?/i);
     if (minutesMatch) {
       const minutes = parseInt(minutesMatch[1]);
       const pickupTime = addMinutes(zonedNow, minutes);
 
       // Validate against closing time
       if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
-        return null;
+        const fallbackOpen = getNextOpenDateTime(zonedNow);
+        if (!fallbackOpen) return null;
+
+        const fallbackTime = addMinutes(fallbackOpen, minutes);
+        const fallbackHours = businessData.hours[
+          format(utcToZonedTime(fallbackTime, TIMEZONE), 'EEEE').toLowerCase()
+        ];
+
+        if (!validatePickupTime(fallbackTime, fallbackHours)) {
+          return null;
+        }
+
+        return {
+          time: formatInTimeZone(fallbackTime, TIMEZONE, 'h:mm a'),
+          fullTime: formatInTimeZone(fallbackTime, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+          iso: fallbackTime.toISOString()
+        };
       }
 
       return {
@@ -198,13 +267,29 @@ export function parsePickupTime(requestedTime) {
     }
 
     // Handle relative hours like "in 3 hours"
-    const hoursMatch = requestedTime.match(/(?:in\s+)?(\d+)\s*hours?/i);
+    const hoursMatch = timeInput.match(/(?:in\s+)?(\d+)\s*hours?/i);
     if (hoursMatch) {
       const hours = parseInt(hoursMatch[1]);
       const pickupTime = addMinutes(zonedNow, hours * 60);
 
       // Validate against closing time
       if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
+        const fallbackOpen = getNextOpenDateTime(zonedNow);
+        if (fallbackOpen) {
+          const fallbackTime = addMinutes(fallbackOpen, hours * 60);
+          const fallbackHours = businessData.hours[
+            format(utcToZonedTime(fallbackTime, TIMEZONE), 'EEEE').toLowerCase()
+          ];
+
+          if (validatePickupTime(fallbackTime, fallbackHours)) {
+            return {
+              time: formatInTimeZone(fallbackTime, TIMEZONE, 'h:mm a'),
+              fullTime: formatInTimeZone(fallbackTime, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+              iso: fallbackTime.toISOString()
+            };
+          }
+        }
+
         return null;
       }
 
@@ -216,7 +301,7 @@ export function parsePickupTime(requestedTime) {
     }
 
     // Handle specific times TODAY like "6pm" or "6:30 PM"
-    const timeMatch = requestedTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    const timeMatch = timeInput.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
     if (timeMatch) {
       let hour = parseInt(timeMatch[1]);
       const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
@@ -235,6 +320,27 @@ export function parsePickupTime(requestedTime) {
 
       // Validate against closing time
       if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
+        const fallbackOpen = getNextOpenDateTime(zonedNow);
+        if (fallbackOpen) {
+          const fallbackDateStr = formatInTimeZone(fallbackOpen, TIMEZONE, 'yyyy-MM-dd');
+          const fallbackDate = zonedTimeToUtc(
+            `${fallbackDateStr}T${timeString}`,
+            TIMEZONE
+          );
+
+          const fallbackHours = businessData.hours[
+            format(utcToZonedTime(fallbackDate, TIMEZONE), 'EEEE').toLowerCase()
+          ];
+
+          if (validatePickupTime(fallbackDate, fallbackHours)) {
+            return {
+              time: formatInTimeZone(fallbackDate, TIMEZONE, 'h:mm a'),
+              fullTime: formatInTimeZone(fallbackDate, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+              iso: fallbackDate.toISOString()
+            };
+          }
+        }
+
         return null;
       }
 
