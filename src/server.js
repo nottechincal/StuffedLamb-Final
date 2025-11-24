@@ -38,7 +38,8 @@ app.use((req, res, next) => {
 // Request logging
 app.use((req, res, next) => {
   if (req.path !== '/health') {
-    logger.info(`${req.method} ${req.path}`, { body: req.body });
+    const bodySummary = logger.summarizePayload(req.body);
+    logger.info(`${req.method} ${req.path}`, { bodySummary });
   }
   next();
 });
@@ -129,7 +130,7 @@ app.post('/webhook', async (req, res) => {
         }
       }
 
-      logger.info(`Processing: ${functionName}`, params);
+      logger.info(`Processing: ${functionName}`, logger.summarizePayload(params));
 
       let result;
 
@@ -301,8 +302,8 @@ async function handleQuickAddItem(req, params) {
   await saveSession(callId, session);
 
   // Use varied, natural confirmations
-  const message = naturalSpeech.getAddedConfirmation(
-    result.item.item_name,
+  const message = result.message || naturalSpeech.getAddedConfirmation(
+    cartService.describeItemForSpeech(result.item),
     result.item.quantity
   );
 

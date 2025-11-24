@@ -80,7 +80,8 @@ class CartService {
 
       console.log(`[CART] Combined ${quantity || 1}x ${menuItem.name} with existing item (total: ${cart[existingItemIndex].quantity})`);
 
-      const message = naturalSpeech.getAddedConfirmation(menuItem.name, quantity || 1);
+      const spokenItem = this.describeItemForSpeech(cart[existingItemIndex], { includeArticle: false });
+      const message = naturalSpeech.getAddedConfirmation(spokenItem, quantity || 1);
       return {
         success: true,
         itemIndex: existingItemIndex,
@@ -119,7 +120,8 @@ class CartService {
       cart[recentSameItemIndex].quantity += (quantity || 1) - 1; // Don't double the quantity
       cart[recentSameItemIndex].timestamp = new Date().toISOString(); // Update timestamp
 
-      const message = `Got it! Updated the ${menuItem.name} with ${normalizedAddons.join(' and ')}`;
+      const spokenItem = this.describeItemForSpeech(cart[recentSameItemIndex], { includeArticle: false });
+      const message = `Got it! Updated ${spokenItem}`;
       return {
         success: true,
         itemIndex: recentSameItemIndex,
@@ -148,7 +150,8 @@ class CartService {
     cart.push(item);
 
     // Use natural confirmation instead of robotic "Added 1x Item"
-    const message = naturalSpeech.getAddedConfirmation(menuItem.name, item.quantity);
+    const spokenItem = this.describeItemForSpeech(item);
+    const message = naturalSpeech.getAddedConfirmation(spokenItem, item.quantity);
 
     return {
       success: true,
@@ -316,6 +319,43 @@ class CartService {
     return parts.join(' ');
   }
 
+  describeItemForSpeech(item, options = {}) {
+    const { includeArticle = true } = options;
+    const menuItem = this.getMenuItem(item.category, item.item_id);
+
+    // Prefer the specific drink name for soft drinks
+    const baseName = (item.item_id === 'soft_drink' && item.drink_option)
+      ? item.drink_option.toLowerCase()
+      : (menuItem?.name || item.item_name || 'item').toLowerCase();
+
+    const quantityPhrase = item.quantity > 1
+      ? `${item.quantity} ${baseName}${item.quantity > 1 ? 's' : ''}`
+      : includeArticle
+        ? `a ${baseName}`
+        : baseName;
+
+    const addonNames = (item.addons || []).map((addonId) => {
+      const addon = menuItem?.addons?.[addonId];
+      return addon ? addon.name.toLowerCase() : addonId.toLowerCase();
+    });
+
+    const detailParts = [...addonNames];
+
+    if (item.drink_option && item.item_id !== 'soft_drink') {
+      detailParts.push(`a ${item.drink_option.toLowerCase()}`);
+    }
+
+    if (item.notes) {
+      detailParts.push(item.notes.toLowerCase());
+    }
+
+    const detailString = detailParts.length > 0
+      ? ` with ${naturalSpeech.formatItemList(detailParts)}`
+      : '';
+
+    return `${quantityPhrase}${detailString}`;
+  }
+
   /**
    * Get menu item by category and ID
    */
@@ -360,12 +400,24 @@ class CartService {
     const gst = subtotal * (gstRate / (1 + gstRate)); // Extract GST from total
     const total = subtotal;
 
+    const spokenItems = cart.map((item) => this.describeItemForSpeech(item)).filter(Boolean);
+    const itemsLine = naturalSpeech.formatItemList(spokenItems);
+    const spokenTotal = naturalSpeech.formatMoney(total);
+    const spokenSummary = spokenItems.length
+      ? `That's ${itemsLine}, that comes to ${spokenTotal}.`
+      : 'Cart is empty.';
+
     return {
       subtotal: subtotal.toFixed(2),
       gst: gst.toFixed(2),
       total: total.toFixed(2),
       itemCount: cart.length,
-      currency: 'AUD'
+      currency: 'AUD',
+      spokenItems,
+      spokenSummary,
+      spokenSummaryWithPrompt: spokenItems.length
+        ? `${itemsLine ? `That's ${itemsLine},` : ''} that comes to ${spokenTotal}. Anything else?`
+        : 'Cart is empty. Anything else?'
     };
   }
 

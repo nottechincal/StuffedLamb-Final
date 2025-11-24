@@ -58,12 +58,12 @@ export function getConfirmation() {
 /**
  * Vary item added confirmations
  */
-export function getAddedConfirmation(itemName, quantity) {
+export function getAddedConfirmation(spokenItem, quantity) {
   const templates = [
-    `${quantity > 1 ? quantity : 'One'} ${itemName}${quantity > 1 ? 's' : ''} added`,
-    `Added ${quantity > 1 ? quantity : 'a'} ${itemName}${quantity > 1 ? 's' : ''}`,
-    `I've got ${quantity > 1 ? quantity : 'one'} ${itemName}${quantity > 1 ? 's' : ''} for you`,
-    `${quantity > 1 ? quantity : 'One'} ${itemName}${quantity > 1 ? 's' : ''}, coming up`
+    `No worries, added ${spokenItem}`,
+    `Got it, ${spokenItem} coming up`,
+    `${quantity > 1 ? 'All set' : 'Added'} ${spokenItem}`,
+    `Sure thing, ${spokenItem} added`
   ];
   return templates[Math.floor(Math.random() * templates.length)];
 }
@@ -130,6 +130,18 @@ export function formatOrderConfirmation(orderNumber, total, pickupTime) {
   const time = formatPickupTime(pickupTime);
 
   return `Perfect! Your ${orderNum} comes to ${money}, ready for pickup ${time}`;
+}
+
+/**
+ * Join an array of items into a natural-sounding list
+ */
+export function formatItemList(items) {
+  if (!items || items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+
+  const last = items[items.length - 1];
+  return `${items.slice(0, -1).join(', ')}, and ${last}`;
 }
 
 /**
