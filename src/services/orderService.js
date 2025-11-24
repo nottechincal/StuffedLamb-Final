@@ -74,11 +74,17 @@ class OrderService {
           totalOrders: 0,
           totalSpent: 0,
           firstOrderDate: order.createdAt,
-          lastOrderDate: order.createdAt
+          lastOrderDate: order.createdAt,
+          name: order.customerName || null
         };
       }
 
       const customer = customers[phoneNumber];
+
+      // Refresh saved name when available so we can greet returning callers properly
+      if (order.customerName) {
+        customer.name = order.customerName;
+      }
 
       // Add order to history (keep last 20)
       customer.orders.unshift({

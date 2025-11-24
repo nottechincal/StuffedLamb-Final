@@ -266,6 +266,7 @@ async function handleCheckOpen() {
 
 async function handleGetCallerSmartContext(req) {
   const callId = getCallId(req);
+  const session = await getOrCreateSession(callId);
 
   // Try multiple locations for phone number in Vapi payload
   const callerNumber = req.body.message?.call?.customer?.number
@@ -277,22 +278,43 @@ async function handleGetCallerSmartContext(req) {
 
   logger.info('getCallerSmartContext: extracted phone', { callerNumber, hasCall: !!req.body.message?.call });
 
-  const customerData = orderService.getCustomerData(callerNumber);
+  const customerData = callerNumber !== 'unknown'
+    ? orderService.getCustomerData(callerNumber)
+    : null;
+
+  // Persist caller info to the session so later tool calls can rely on it
+  session.metadata.customerPhone = callerNumber !== 'unknown'
+    ? callerNumber
+    : session.metadata.customerPhone;
+
+  if (customerData?.name) {
+    session.metadata.customerName = customerData.name;
+    session.metadata.customerNameSource = 'history';
+  }
+
+  session.metadata.orderHistory = customerData?.orders || [];
+  await saveSession(callId, session);
 
   if (customerData) {
+    const greetingName = customerData.name || null;
     return {
       phoneNumber: callerNumber,
       totalOrders: customerData.totalOrders,
       lastOrderDate: customerData.lastOrderDate,
       favoriteItems: Object.keys(customerData.favoriteItems).slice(0, 3),
-      greeting: `Welcome back! You've ordered ${customerData.totalOrders} times.`
+      greeting: greetingName
+        ? `Welcome back, ${greetingName}!`
+        : `Welcome back! You've ordered ${customerData.totalOrders} times.`,
+      knownName: greetingName,
+      needsNameSpelling: !greetingName
     };
   }
 
   return {
     phoneNumber: callerNumber,
     totalOrders: 0,
-    greeting: 'Welcome to Stuffed Lamb! First time ordering?'
+    greeting: 'Welcome to Stuffed Lamb! First time ordering?',
+    needsNameSpelling: true
   };
 }
 
@@ -539,14 +561,30 @@ async function handleCreateOrder(req, params) {
     };
   }
 
+  const customerName = params.customerName || session.metadata.customerName;
+  const customerPhone = params.customerPhone || session.metadata.customerPhone;
+
+  if (!customerName || !customerPhone) {
+    return {
+      success: false,
+      error: 'Name and phone number are required before creating the order.',
+      requiresCustomerName: !customerName,
+      requiresCustomerPhone: !customerPhone
+    };
+  }
+
+  // Persist confirmed customer info for future tool calls during this session
+  session.metadata.customerName = customerName;
+  session.metadata.customerPhone = customerPhone;
+
   const pricing = cartService.priceCart(session.cart);
 
   // Prefer explicitly-set pickup time, fall back to estimated time
   const finalPickupTime = session.metadata.pickupTime || session.metadata.estimatedReadyTime;
 
   const orderData = {
-    customerName: params.customerName,
-    customerPhone: params.customerPhone,
+    customerName,
+    customerPhone,
     items: [...session.cart],
     pricing,
     pickupTime: finalPickupTime,
@@ -563,12 +601,12 @@ async function handleCreateOrder(req, params) {
   const order = orderService.createOrder(orderData);
 
   // Send notifications
-  await smsService.sendReceipt(params.customerPhone, order);
+  await smsService.sendReceipt(orderData.customerPhone, order);
   await smsService.notifyShopNewOrder(order);
 
-  // Clear cart
+  // Clear cart and end session now that the order is placed
   cartService.clearCart(session.cart);
-  await saveSession(callId, session);
+  await sessionManager.deleteSession(callId);
 
   logger.success(`Order created: ${order.orderNumber}`, { total: order.pricing.total });
 
@@ -585,7 +623,8 @@ async function handleCreateOrder(req, params) {
     orderNumber: order.orderNumber,
     total: order.pricing.total,
     pickupTime: order.pickupTime,
-    message
+    message,
+    endCall: true
   };
 }
 
