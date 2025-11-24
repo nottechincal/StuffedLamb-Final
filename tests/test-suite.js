@@ -1,8 +1,22 @@
-import { describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert';
 
 // fetch is available globally in Node.js 18+
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:8000/webhook';
+let server;
+
+before(async () => {
+  // Prevent auto-start inside server module and spin it up here for tests
+  process.env.NODE_ENV = 'test';
+  const { startServer } = await import('../src/server.js');
+  server = await startServer();
+});
+
+after(async () => {
+  if (!server) return;
+  const { stopServer } = await import('../src/server.js');
+  await stopServer();
+});
 
 // Mock VAPI message structure
 function createToolCall(functionName, args = {}) {

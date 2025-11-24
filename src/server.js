@@ -38,7 +38,8 @@ app.use((req, res, next) => {
 // Request logging
 app.use((req, res, next) => {
   if (req.path !== '/health') {
-    logger.info(`${req.method} ${req.path}`, { body: req.body });
+    const bodySummary = logger.summarizePayload(req.body);
+    logger.info(`${req.method} ${req.path}`, { bodySummary });
   }
   next();
 });
@@ -59,6 +60,14 @@ async function getOrCreateSession(callId) {
 
 async function saveSession(callId, session) {
   await sessionManager.saveSession(callId, session);
+}
+
+function setLastAction(session, action) {
+  session.metadata = session.metadata || {};
+  session.metadata.lastAction = {
+    ...action,
+    timestamp: new Date().toISOString()
+  };
 }
 
 // ==================== WEBHOOK ENDPOINTS ====================
@@ -129,7 +138,7 @@ app.post('/webhook', async (req, res) => {
         }
       }
 
-      logger.info(`Processing: ${functionName}`, params);
+      logger.info(`Processing: ${functionName}`, logger.summarizePayload(params));
 
       let result;
 
@@ -257,6 +266,7 @@ async function handleCheckOpen() {
 
 async function handleGetCallerSmartContext(req) {
   const callId = getCallId(req);
+  const session = await getOrCreateSession(callId);
 
   // Try multiple locations for phone number in Vapi payload
   const callerNumber = req.body.message?.call?.customer?.number
@@ -268,22 +278,43 @@ async function handleGetCallerSmartContext(req) {
 
   logger.info('getCallerSmartContext: extracted phone', { callerNumber, hasCall: !!req.body.message?.call });
 
-  const customerData = orderService.getCustomerData(callerNumber);
+  const customerData = callerNumber !== 'unknown'
+    ? orderService.getCustomerData(callerNumber)
+    : null;
+
+  // Persist caller info to the session so later tool calls can rely on it
+  session.metadata.customerPhone = callerNumber !== 'unknown'
+    ? callerNumber
+    : session.metadata.customerPhone;
+
+  if (customerData?.name) {
+    session.metadata.customerName = customerData.name;
+    session.metadata.customerNameSource = 'history';
+  }
+
+  session.metadata.orderHistory = customerData?.orders || [];
+  await saveSession(callId, session);
 
   if (customerData) {
+    const greetingName = customerData.name || null;
     return {
       phoneNumber: callerNumber,
       totalOrders: customerData.totalOrders,
       lastOrderDate: customerData.lastOrderDate,
       favoriteItems: Object.keys(customerData.favoriteItems).slice(0, 3),
-      greeting: `Welcome back! You've ordered ${customerData.totalOrders} times.`
+      greeting: greetingName
+        ? `Welcome back, ${greetingName}!`
+        : `Welcome back! You've ordered ${customerData.totalOrders} times.`,
+      knownName: greetingName,
+      needsNameSpelling: !greetingName
     };
   }
 
   return {
     phoneNumber: callerNumber,
     totalOrders: 0,
-    greeting: 'Welcome to Stuffed Lamb! First time ordering?'
+    greeting: 'Welcome to Stuffed Lamb! First time ordering?',
+    needsNameSpelling: true
   };
 }
 
@@ -298,11 +329,16 @@ async function handleQuickAddItem(req, params) {
   }
 
   const result = cartService.addItemToCart(session.cart, parsed.itemConfig);
+  setLastAction(session, {
+    type: 'add',
+    itemDescription: cartService.describeItemForSpeech(result.item, { includeArticle: false }),
+    message: result.message
+  });
   await saveSession(callId, session);
 
   // Use varied, natural confirmations
-  const message = naturalSpeech.getAddedConfirmation(
-    result.item.item_name,
+  const message = result.message || naturalSpeech.getAddedConfirmation(
+    cartService.describeItemForSpeech(result.item),
     result.item.quantity
   );
 
@@ -318,6 +354,15 @@ async function handleAddMultipleItems(req, params) {
   const session = await getOrCreateSession(callId);
 
   const result = cartService.addMultipleItems(session.cart, params.items);
+  if (result.success) {
+    setLastAction(session, {
+      type: 'add-multiple',
+      itemDescription: `${result.count} items`,
+      message: result.count === 1
+        ? naturalSpeech.getConfirmation()
+        : `${naturalSpeech.getConfirmation()}, added ${result.count} items`
+    });
+  }
   await saveSession(callId, session);
 
   const message = result.count === 1
@@ -343,6 +388,13 @@ async function handleRemoveCartItem(req, params) {
   const session = await getOrCreateSession(callId);
 
   const result = cartService.removeItem(session.cart, params.itemIndex);
+  if (result.success) {
+    setLastAction(session, {
+      type: 'remove',
+      itemDescription: cartService.describeItemForSpeech(result.removed, { includeArticle: false }),
+      message: result.message
+    });
+  }
   await saveSession(callId, session);
 
   return result;
@@ -353,6 +405,11 @@ async function handleClearCart(req) {
   const session = await getOrCreateSession(callId);
 
   const result = cartService.clearCart(session.cart);
+  setLastAction(session, {
+    type: 'clear',
+    itemDescription: 'cart',
+    message: result.message
+  });
   await saveSession(callId, session);
 
   return result;
@@ -372,6 +429,14 @@ async function handleEditCartItem(req, params) {
   }
 
   const result = cartService.editItem(session.cart, params.itemIndex, params.modifications);
+  if (result.success) {
+    const spokenItem = cartService.describeItemForSpeech(result.item, { includeArticle: false });
+    setLastAction(session, {
+      type: 'edit',
+      itemDescription: spokenItem,
+      message: spokenItem ? `${result.message} - ${spokenItem}` : result.message
+    });
+  }
   await saveSession(callId, session);
 
   return result;
@@ -381,7 +446,7 @@ async function handlePriceCart(req) {
   const callId = getCallId(req);
   const session = await getOrCreateSession(callId);
 
-  return cartService.priceCart(session.cart);
+  return cartService.priceCart(session.cart, { lastAction: session.metadata?.lastAction });
 }
 
 async function handleConvertToMeals(req, params) {
@@ -496,14 +561,30 @@ async function handleCreateOrder(req, params) {
     };
   }
 
+  const customerName = params.customerName || session.metadata.customerName;
+  const customerPhone = params.customerPhone || session.metadata.customerPhone;
+
+  if (!customerName || !customerPhone) {
+    return {
+      success: false,
+      error: 'Name and phone number are required before creating the order.',
+      requiresCustomerName: !customerName,
+      requiresCustomerPhone: !customerPhone
+    };
+  }
+
+  // Persist confirmed customer info for future tool calls during this session
+  session.metadata.customerName = customerName;
+  session.metadata.customerPhone = customerPhone;
+
   const pricing = cartService.priceCart(session.cart);
 
   // Prefer explicitly-set pickup time, fall back to estimated time
   const finalPickupTime = session.metadata.pickupTime || session.metadata.estimatedReadyTime;
 
   const orderData = {
-    customerName: params.customerName,
-    customerPhone: params.customerPhone,
+    customerName,
+    customerPhone,
     items: [...session.cart],
     pricing,
     pickupTime: finalPickupTime,
@@ -520,12 +601,12 @@ async function handleCreateOrder(req, params) {
   const order = orderService.createOrder(orderData);
 
   // Send notifications
-  await smsService.sendReceipt(params.customerPhone, order);
+  await smsService.sendReceipt(orderData.customerPhone, order);
   await smsService.notifyShopNewOrder(order);
 
-  // Clear cart
+  // Clear cart and end session now that the order is placed
   cartService.clearCart(session.cart);
-  await saveSession(callId, session);
+  await sessionManager.deleteSession(callId);
 
   logger.success(`Order created: ${order.orderNumber}`, { total: order.pricing.total });
 
@@ -542,7 +623,8 @@ async function handleCreateOrder(req, params) {
     orderNumber: order.orderNumber,
     total: order.pricing.total,
     pickupTime: order.pickupTime,
-    message
+    message,
+    endCall: true
   };
 }
 
@@ -591,39 +673,74 @@ async function handleEndCall(req) {
 
 // ==================== STARTUP ====================
 
-async function startup() {
+let serverInstance;
+
+export async function startServer(options = {}) {
+  if (serverInstance) {
+    return serverInstance;
+  }
+
   try {
+    const port = options.port || PORT;
+    const host = options.host || HOST;
+
     logger.info('🚀 Starting Stuffed Lamb VAPI Server...');
 
     // Initialize services
     await sessionManager.initialize();
     smsService.initialize();
 
-    // Start server
-    app.listen(PORT, HOST, () => {
-      logger.success(`✅ Server running on http://${HOST}:${PORT}`);
-      logger.info(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
-      logger.info(`🏪 Shop: ${process.env.SHOP_NAME || 'Stuffed Lamb'}`);
-      logger.info(`📞 Webhook ready at: http://${HOST}:${PORT}/webhook`);
+    await new Promise((resolve, reject) => {
+      serverInstance = app.listen(port, host, () => {
+        logger.success(`✅ Server running on http://${host}:${port}`);
+        logger.info(`📋 Environment: ${process.env.NODE_ENV || 'development'}`);
+        logger.info(`🏪 Shop: ${process.env.SHOP_NAME || 'Stuffed Lamb'}`);
+        logger.info(`📞 Webhook ready at: http://${host}:${port}/webhook`);
+        resolve();
+      });
+      serverInstance.on('error', reject);
     });
+
+    return serverInstance;
   } catch (error) {
     logger.error('Failed to start server:', error);
-    process.exit(1);
+    throw error;
   }
+}
+
+export async function stopServer() {
+  if (!serverInstance) {
+    return;
+  }
+
+  await new Promise((resolve, reject) => {
+    serverInstance.close((err) => {
+      if (err) return reject(err);
+      return resolve();
+    });
+  });
+
+  await sessionManager.close();
+  serverInstance = null;
+  logger.info('🛑 Server stopped');
 }
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   logger.info('Shutting down gracefully...');
-  await sessionManager.close();
+  await stopServer();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   logger.info('Shutting down gracefully...');
-  await sessionManager.close();
+  await stopServer();
   process.exit(0);
 });
 
-// Start the server
-startup();
+// Start the server automatically unless running under tests
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
+
+export default app;
