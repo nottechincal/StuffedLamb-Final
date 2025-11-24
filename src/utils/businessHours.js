@@ -96,11 +96,23 @@ export function parsePickupTime(requestedTime) {
     const now = new Date();
     const zonedNow = utcToZonedTime(now, TIMEZONE);
     const currentDayOfWeek = format(zonedNow, 'EEEE').toLowerCase();
+    const normalizedInput = (requestedTime || '').toString().trim();
+
+    // Clean up filler words/punctuation so phrases like "in about 40 minutes" still parse
+    const timeInput = normalizedInput
+      .replace(/[,]/g, ' ')
+      .replace(/\b(about|around|approximately|approx|roughly)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!timeInput) {
+      return null;
+    }
 
     // HANDLE ISO TIMESTAMP FORMAT (when AI sends timestamps directly like "2025-11-29T03:40:00.000Z")
-    const isoMatch = requestedTime.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    const isoMatch = timeInput.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     if (isoMatch) {
-      const requestedDate = new Date(requestedTime);
+      const requestedDate = new Date(timeInput);
       const zonedDate = utcToZonedTime(requestedDate, TIMEZONE);
       const dayName = format(zonedDate, 'EEEE').toLowerCase();
       const targetHours = businessData.hours[dayName];
@@ -120,7 +132,7 @@ export function parsePickupTime(requestedTime) {
     // HANDLE FUTURE DAY REQUESTS (e.g., "Wednesday at 1pm", "tomorrow at 6pm")
     const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     const dayPattern = new RegExp(`(${dayNames.join('|')}|tomorrow|today)(?:\\s+at)?\\s+(.+)`, 'i');
-    const dayMatch = requestedTime.match(dayPattern);
+    const dayMatch = timeInput.match(dayPattern);
 
     if (dayMatch) {
       let targetDayName = dayMatch[1].toLowerCase();
@@ -180,7 +192,7 @@ export function parsePickupTime(requestedTime) {
     }
 
     // Handle relative times like "in 30 minutes" or "30 minutes" or "23 minutes"
-    const minutesMatch = requestedTime.match(/(?:in\s+)?(\d+)\s*minutes?/i);
+    const minutesMatch = timeInput.match(/(?:in\s+)?(\d+)\s*minutes?/i);
     if (minutesMatch) {
       const minutes = parseInt(minutesMatch[1]);
       const pickupTime = addMinutes(zonedNow, minutes);
@@ -198,7 +210,7 @@ export function parsePickupTime(requestedTime) {
     }
 
     // Handle relative hours like "in 3 hours"
-    const hoursMatch = requestedTime.match(/(?:in\s+)?(\d+)\s*hours?/i);
+    const hoursMatch = timeInput.match(/(?:in\s+)?(\d+)\s*hours?/i);
     if (hoursMatch) {
       const hours = parseInt(hoursMatch[1]);
       const pickupTime = addMinutes(zonedNow, hours * 60);
@@ -216,7 +228,7 @@ export function parsePickupTime(requestedTime) {
     }
 
     // Handle specific times TODAY like "6pm" or "6:30 PM"
-    const timeMatch = requestedTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    const timeMatch = timeInput.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
     if (timeMatch) {
       let hour = parseInt(timeMatch[1]);
       const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
