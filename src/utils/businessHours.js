@@ -95,8 +95,69 @@ export function parsePickupTime(requestedTime) {
   try {
     const now = new Date();
     const zonedNow = utcToZonedTime(now, TIMEZONE);
-    const dayOfWeek = format(zonedNow, 'EEEE').toLowerCase();
-    const hours = businessData.hours[dayOfWeek];
+    const currentDayOfWeek = format(zonedNow, 'EEEE').toLowerCase();
+
+    // HANDLE FUTURE DAY REQUESTS (e.g., "Wednesday at 1pm", "tomorrow at 6pm")
+    const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const dayPattern = new RegExp(`(${dayNames.join('|')}|tomorrow|today)(?:\\s+at)?\\s+(.+)`, 'i');
+    const dayMatch = requestedTime.match(dayPattern);
+
+    if (dayMatch) {
+      let targetDayName = dayMatch[1].toLowerCase();
+      const timeStr = dayMatch[2];
+
+      // Convert "tomorrow" or "today" to actual day name
+      if (targetDayName === 'today') {
+        targetDayName = currentDayOfWeek;
+      } else if (targetDayName === 'tomorrow') {
+        const tomorrowIndex = (dayNames.indexOf(currentDayOfWeek) + 1) % 7;
+        targetDayName = dayNames[tomorrowIndex];
+      }
+
+      // Calculate days until target day
+      const currentDayIndex = dayNames.indexOf(currentDayOfWeek);
+      const targetDayIndex = dayNames.indexOf(targetDayName);
+      let daysAhead = (targetDayIndex - currentDayIndex + 7) % 7;
+
+      // If same day and time has passed, assume next week
+      if (daysAhead === 0) {
+        const currentTime = format(zonedNow, 'HH:mm');
+        const targetHours = businessData.hours[targetDayName];
+        if (targetHours && !targetHours.closed) {
+          // If time specified is before current time, assume next week
+          daysAhead = 7;
+        }
+      }
+
+      // Parse the time part (e.g., "1pm", "13:00")
+      const timeMatch = timeStr.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+      if (timeMatch) {
+        let hour = parseInt(timeMatch[1]);
+        const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+        const meridiem = timeMatch[3]?.toLowerCase();
+
+        // Convert to 24-hour format
+        if (meridiem === 'pm' && hour < 12) hour += 12;
+        else if (meridiem === 'am' && hour === 12) hour = 0;
+
+        // Create future date
+        const futureDate = new Date(zonedNow);
+        futureDate.setDate(futureDate.getDate() + daysAhead);
+        futureDate.setHours(hour, minute, 0, 0);
+
+        // Validate against that day's hours
+        const targetHours = businessData.hours[targetDayName];
+        if (!validatePickupTime(futureDate, targetHours)) {
+          return null;
+        }
+
+        return {
+          time: formatInTimeZone(futureDate, TIMEZONE, 'h:mm a'),
+          fullTime: formatInTimeZone(futureDate, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+          iso: futureDate.toISOString()
+        };
+      }
+    }
 
     // Handle relative times like "in 30 minutes" or "30 minutes" or "23 minutes"
     const minutesMatch = requestedTime.match(/(?:in\s+)?(\d+)\s*minutes?/i);
@@ -105,7 +166,7 @@ export function parsePickupTime(requestedTime) {
       const pickupTime = addMinutes(zonedNow, minutes);
 
       // Validate against closing time
-      if (!validatePickupTime(pickupTime, hours)) {
+      if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
         return null;
       }
 
@@ -123,7 +184,7 @@ export function parsePickupTime(requestedTime) {
       const pickupTime = addMinutes(zonedNow, hours * 60);
 
       // Validate against closing time
-      if (!validatePickupTime(pickupTime, businessData.hours[dayOfWeek])) {
+      if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
         return null;
       }
 
@@ -134,7 +195,7 @@ export function parsePickupTime(requestedTime) {
       };
     }
 
-    // Handle specific times like "6pm" or "6:30 PM"
+    // Handle specific times TODAY like "6pm" or "6:30 PM"
     const timeMatch = requestedTime.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
     if (timeMatch) {
       let hour = parseInt(timeMatch[1]);
@@ -153,7 +214,7 @@ export function parsePickupTime(requestedTime) {
       const pickupTime = parse(`${dateString} ${timeString}`, 'yyyy-MM-dd HH:mm', zonedNow);
 
       // Validate against closing time
-      if (!validatePickupTime(pickupTime, hours)) {
+      if (!validatePickupTime(pickupTime, businessData.hours[currentDayOfWeek])) {
         return null;
       }
 

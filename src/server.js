@@ -422,23 +422,14 @@ async function handleSetPickupTime(req, params) {
     return {
       success: true,
       pickupTime: parsed.fullTime,
-      message: `Your order will be ready for pickup at ${parsed.time}`
+      message: `Perfect! Your order will be ready for pickup ${parsed.time}`
     };
   }
 
-  // Check if it's a closing time issue
-  const isOpen = isShopOpen();
-  if (!isOpen) {
-    return {
-      success: false,
-      error: `We're currently closed. We'll be open ${getNextOpenTime()}`
-    };
-  }
-
-  // Suggest an earlier time if the requested time is after closing
+  // If parsing failed, suggest next available time
   return {
     success: false,
-    error: 'That time is too late. Could you pick up earlier? We close at 9 PM'
+    error: `I couldn't understand that time. Try saying something like "Wednesday at 1pm" or "in 30 minutes". We're open ${getNextOpenTime()}.`
   };
 }
 
