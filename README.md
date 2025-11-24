@@ -41,6 +41,7 @@ ngrok http 8000
 - **Production Deployment:** [docs/PRODUCTION-DEPLOYMENT.md](docs/PRODUCTION-DEPLOYMENT.md)
 - **System Overview:** [docs/FINAL-SUMMARY.md](docs/FINAL-SUMMARY.md)
 - **Configuration:** [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+- **Merge Conflict Guide:** [docs/MERGE_CONFLICT_GUIDE.md](docs/MERGE_CONFLICT_GUIDE.md)
 
 ---
 

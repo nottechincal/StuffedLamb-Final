@@ -389,7 +389,12 @@ class CartService {
   /**
    * Calculate cart total with GST breakdown
    */
-  priceCart(cart) {
+  priceCart(cart, options = {}) {
+    const lastAction = options.lastAction;
+    const recentLastAction = lastAction?.timestamp
+      ? (Date.now() - new Date(lastAction.timestamp).getTime()) < 120000
+      : false;
+
     let subtotal = 0;
 
     for (const item of cart) {
