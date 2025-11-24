@@ -580,43 +580,12 @@ async function handleEndCall(req) {
   const callId = getCallId(req);
   await sessionManager.deleteSession(callId);
 
-  const farewells = [
-    'Thanks for calling, see you soon!',
-    'Great, see you when you pick it up!',
-    'Perfect, thanks!',
-    'Awesome, see you soon!'
-  ];
-  const message = farewells[Math.floor(Math.random() * farewells.length)];
-
-  // Actually terminate the call using Vapi's API
-  try {
-    const vapiApiKey = process.env.VAPI_API_KEY;
-    if (vapiApiKey && callId) {
-      const response = await fetch(`https://api.vapi.ai/call/${callId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${vapiApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          status: 'ended'
-        })
-      });
-
-      if (!response.ok) {
-        logger.warn('Failed to end call via Vapi API:', await response.text());
-      } else {
-        logger.info('Call ended successfully via Vapi API');
-      }
-    }
-  } catch (error) {
-    logger.error('Error ending call:', error);
-  }
+  // Don't return a message - let the AI say goodbye from the prompt
+  // Returning endCall: true tells VAPI to terminate the call
+  logger.info('endCall() triggered - VAPI should end call now');
 
   return {
-    success: true,
-    message,
-    endCall: true  // Signal to Vapi to end the call
+    endCall: true  // Signal to VAPI to end the call immediately
   };
 }
 
