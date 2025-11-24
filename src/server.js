@@ -362,6 +362,15 @@ async function handleEditCartItem(req, params) {
   const callId = getCallId(req);
   const session = await getOrCreateSession(callId);
 
+  // Validate that modifications object exists
+  if (!params.modifications || typeof params.modifications !== 'object') {
+    logger.error('editCartItem called without modifications', { params });
+    return {
+      success: false,
+      error: 'Modifications parameter is required. Example: editCartItem(0, { addons: ["nuts"] })'
+    };
+  }
+
   const result = cartService.editItem(session.cart, params.itemIndex, params.modifications);
   await saveSession(callId, session);
 
