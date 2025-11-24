@@ -408,37 +408,9 @@ class CartService {
     const spokenItems = cart.map((item) => this.describeItemForSpeech(item)).filter(Boolean);
     const itemsLine = naturalSpeech.formatItemList(spokenItems);
     const spokenTotal = naturalSpeech.formatMoney(total);
-
-    const changePhrase = (() => {
-      if (!recentLastAction) return null;
-
-      if (lastAction.message) return lastAction.message;
-
-      switch (lastAction.type) {
-        case 'add':
-          return `Added ${lastAction.itemDescription || 'that'}`;
-        case 'add-multiple':
-          return `Added ${lastAction.itemDescription || 'items'}`;
-        case 'remove':
-          return `Removed ${lastAction.itemDescription || 'that item'}`;
-        case 'edit':
-          return `Updated ${lastAction.itemDescription || 'that item'}`;
-        case 'clear':
-          return 'Cleared the cart';
-        default:
-          return null;
-      }
-    })();
-
-    const changeSummary = changePhrase && spokenItems.length
-      ? `${changePhrase}. Total is ${spokenTotal}.`
-      : null;
-
-    const spokenSummary = changeSummary
-      ? changeSummary
-      : spokenItems.length
-        ? `That's ${itemsLine}, that comes to ${spokenTotal}.`
-        : 'Cart is empty.';
+    const spokenSummary = spokenItems.length
+      ? `That's ${itemsLine}, that comes to ${spokenTotal}.`
+      : 'Cart is empty.';
 
     return {
       subtotal: subtotal.toFixed(2),
@@ -448,11 +420,9 @@ class CartService {
       currency: 'AUD',
       spokenItems,
       spokenSummary,
-      spokenSummaryWithPrompt: changeSummary
-        ? `${changeSummary} Anything else?`
-        : spokenItems.length
-          ? `${itemsLine ? `That's ${itemsLine},` : ''} that comes to ${spokenTotal}. Anything else?`
-          : 'Cart is empty. Anything else?'
+      spokenSummaryWithPrompt: spokenItems.length
+        ? `${itemsLine ? `That's ${itemsLine},` : ''} that comes to ${spokenTotal}. Anything else?`
+        : 'Cart is empty. Anything else?'
     };
   }
 
