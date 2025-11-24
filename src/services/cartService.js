@@ -64,7 +64,8 @@ class CartService {
       }
     }
 
-    // Check if identical item already exists in cart (exact match on item_id, drink_option, and addons)
+    // SMART DUPLICATE DETECTION
+    // Check if identical item already exists (exact match on item_id, drink_option, and addons)
     const normalizedAddons = (addons || []).sort();
     const existingItemIndex = cart.findIndex(item =>
       item.item_id === item_id &&
@@ -86,6 +87,45 @@ class CartService {
         item: cart[existingItemIndex],
         message,
         combined: true
+      };
+    }
+
+    // ENHANCED: Check if same item exists with DIFFERENT addons (likely a modification)
+    // If found within last 60 seconds, merge addons instead of creating duplicate
+    const recentSameItemIndex = cart.findIndex(item => {
+      if (item.item_id !== item_id) return false;
+      if (item.drink_option !== (drink_option || null)) return false;
+
+      // Check if added recently (within 60 seconds)
+      const itemAge = Date.now() - new Date(item.timestamp).getTime();
+      if (itemAge > 60000) return false; // Older than 1 minute, treat as separate order
+
+      // Same item, recent, different addons - likely a modification
+      return JSON.stringify((item.addons || []).sort()) !== JSON.stringify(normalizedAddons);
+    });
+
+    if (recentSameItemIndex >= 0 && normalizedAddons.length > 0) {
+      // Merge addons instead of creating duplicate
+      const existingAddons = cart[recentSameItemIndex].addons || [];
+      const mergedAddons = [...new Set([...existingAddons, ...normalizedAddons])];
+
+      console.log(`[CART] Detected addon modification for ${menuItem.name}. Merging addons:`, {
+        before: existingAddons,
+        adding: normalizedAddons,
+        merged: mergedAddons
+      });
+
+      cart[recentSameItemIndex].addons = mergedAddons;
+      cart[recentSameItemIndex].quantity += (quantity || 1) - 1; // Don't double the quantity
+      cart[recentSameItemIndex].timestamp = new Date().toISOString(); // Update timestamp
+
+      const message = `Got it! Updated the ${menuItem.name} with ${normalizedAddons.join(' and ')}`;
+      return {
+        success: true,
+        itemIndex: recentSameItemIndex,
+        item: cart[recentSameItemIndex],
+        message,
+        merged: true
       };
     }
 
