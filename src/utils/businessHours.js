@@ -97,6 +97,26 @@ export function parsePickupTime(requestedTime) {
     const zonedNow = utcToZonedTime(now, TIMEZONE);
     const currentDayOfWeek = format(zonedNow, 'EEEE').toLowerCase();
 
+    // HANDLE ISO TIMESTAMP FORMAT (when AI sends timestamps directly like "2025-11-29T03:40:00.000Z")
+    const isoMatch = requestedTime.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    if (isoMatch) {
+      const requestedDate = new Date(requestedTime);
+      const zonedDate = utcToZonedTime(requestedDate, TIMEZONE);
+      const dayName = format(zonedDate, 'EEEE').toLowerCase();
+      const targetHours = businessData.hours[dayName];
+
+      if (validatePickupTime(zonedDate, targetHours)) {
+        return {
+          time: formatInTimeZone(zonedDate, TIMEZONE, 'h:mm a'),
+          fullTime: formatInTimeZone(zonedDate, TIMEZONE, 'EEEE, MMMM do \'at\' h:mm a'),
+          iso: requestedDate.toISOString()
+        };
+      } else {
+        // ISO timestamp is outside business hours
+        return null;
+      }
+    }
+
     // HANDLE FUTURE DAY REQUESTS (e.g., "Wednesday at 1pm", "tomorrow at 6pm")
     const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     const dayPattern = new RegExp(`(${dayNames.join('|')}|tomorrow|today)(?:\\s+at)?\\s+(.+)`, 'i');
