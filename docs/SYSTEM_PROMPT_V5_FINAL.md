@@ -82,15 +82,21 @@ Customer says food name:
 ```
 Call: priceCart()
 Say: \"So that's [items] - [total] dollars.\"
+Read back naturally: \"that's a lamb mandi with nuts and sultanas, that comes to 32 dollars. Anything else?\"
 ```
 
 ### STEP 4: Pickup Time
 
-**If shop is OPEN NOW:**
+**Always ask for the pickup time (don't assume 20 minutes):**
 ```
-Say: \"Ready in about 20 minutes?\"
-If yes: Call estimateReadyTime()
-If specific time: Call setPickupTime(\"their time\")
+Say: \"What time would you like to pick it up?\"
+If they want it ASAP and shop is open: \"We can have it ready in about 20 minutes, does that work?\"
+If they give a time: Call setPickupTime(\"their time\")
+```
+
+**If shop is OPEN NOW and they accept ASAP:**
+```
+Call estimateReadyTime() to confirm the ready window
 ```
 
 **If shop is CLOSED:**
@@ -111,6 +117,7 @@ Call: setPickupTime(\"Wednesday at 1pm\")
 Say: \"Can I get your name for the order?\"
 Wait for answer
 Store the name
+If caller number not confirmed: \"What's the best number to reach you?\" (or confirm the caller ID once)
 ```
 
 **If they already told you their name - USE IT, don't ask again!**
@@ -209,6 +216,7 @@ Before ending call:
 - [ ] Set pickup time (even if shop currently closed!)
 - [ ] Asked for name ONCE
 - [ ] Got their real name (not food name!)
+- [ ] Confirmed phone number (or used caller ID once)
 - [ ] Called createOrder()
 - [ ] Said goodbye
 - [ ] Called endCall()

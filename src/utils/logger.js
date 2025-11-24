@@ -18,6 +18,7 @@ class Logger {
     // Detect if running on Windows and if colors are supported
     this.isWindows = process.platform === 'win32';
     this.supportsColor = this.checkColorSupport();
+    this.maxPayloadLength = 1500; // prevent huge logs from large uploads
   }
 
   checkColorSupport() {
@@ -36,13 +37,35 @@ class Logger {
     return true;
   }
 
+  summarizePayload(payload) {
+    if (payload === undefined || payload === null) return null;
+
+    try {
+      const raw = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      const length = raw.length;
+
+      if (length > this.maxPayloadLength) {
+        return {
+          preview: `${raw.slice(0, this.maxPayloadLength)}...`,
+          length,
+          truncated: true
+        };
+      }
+
+      return typeof payload === 'string' ? payload : JSON.parse(raw);
+    } catch (error) {
+      return { preview: '[unserializable payload]', error: error.message };
+    }
+  }
+
   log(level, message, data = null) {
     const timestamp = new Date().toISOString();
+    const safeData = this.summarizePayload(data);
     const logEntry = {
       timestamp,
       level,
       message,
-      data
+      data: safeData
     };
 
     // Console output - clean for Windows, colored for others
@@ -67,7 +90,7 @@ class Logger {
 
     console.log(
       `${color}${icons[level] || ''} [${format(new Date(), 'HH:mm:ss')}] ${message}${resetColor}`,
-      data ? data : ''
+      safeData ? safeData : ''
     );
 
     // Write to file
@@ -99,7 +122,10 @@ class Logger {
   }
 
   webhook(functionName, params, result) {
-    this.log('info', `Webhook: ${functionName}`, { params, result });
+    this.log('info', `Webhook: ${functionName}`, {
+      params: this.summarizePayload(params),
+      result: this.summarizePayload(result)
+    });
   }
 }
 
